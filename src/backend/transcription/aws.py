@@ -14,7 +14,7 @@ class InvalidAudioFile(Exception):
 AUDIO_FORMATS = [".mp3", ".wav", ".m4a"]
 
 # Our bucket name on AWS s3
-BUCKET_NAME = "boto3testbucket498peachtree"
+BUCKET_NAME = "peachtreereachaudios"
 
 
 def upload_to_s3(filename: str) -> None:
@@ -31,7 +31,7 @@ def upload_to_s3(filename: str) -> None:
     # Upload file to our client
     s3_client.upload_file(
         Filename=filename,
-	    Bucket="boto3testbucket498peachtree",
+	    Bucket=BUCKET_NAME,
 	    Key=name
     )
     return
@@ -74,7 +74,7 @@ def transcription_service(filename: str, clean_up=False) -> None:
     media_format = end.replace(".", "")
     response = transcribe.start_transcription_job(
         TranscriptionJobName=job_name,
-        Media={'MediaFileUri': f's3://boto3testbucket498peachtree/{name}'},
+        Media={'MediaFileUri': f's3://{BUCKET_NAME}/{name}'},
         MediaFormat=media_format,
         LanguageCode='en-US'
     )
