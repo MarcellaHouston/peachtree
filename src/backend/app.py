@@ -8,6 +8,7 @@ db = Database(create=False)  # set True only once if you want to recreate tables
 
 ALLOWED_MEASURABLE = {"completion", "scalar", "count", "range"}
 
+
 def parse_date(s):
     if not s:
         return None
@@ -34,6 +35,7 @@ def validate_goal(goal):
         errors.append("user is required")
 
     return errors
+
 
 @app.route("/goals", methods=["POST"])
 def get_goals():
@@ -74,6 +76,7 @@ def get_goals():
 
     return jsonify({"goals": results})
 
+
 @app.route("/goals/create", methods=["POST"])
 def create_goal():
     data = request.get_json()
@@ -95,16 +98,20 @@ def create_goal():
     goal["end_date"] = parse_date(goal["end_date"]).isoformat()
 
     # Insert into DB (order must match schema, excluding id)
-    db.insert("goals", [
-        goal["name"],
-        goal.get("description"),
-        goal["measurable"],
-        goal["start_date"],
-        goal["end_date"],
-        goal["user"],
-    ])
+    db.insert(
+        "goals",
+        [
+            goal["name"],
+            goal.get("description"),
+            goal["measurable"],
+            goal["start_date"],
+            goal["end_date"],
+            goal["user"],
+        ],
+    )
 
     return "", 204
+
 
 @app.route("/goals/update", methods=["POST"])
 def update_goal():
