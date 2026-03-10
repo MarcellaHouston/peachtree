@@ -10,6 +10,10 @@ class InvalidAudioFile(Exception):
     pass
 
 
+class TranscriptionFailure(Exception):
+    pass
+
+
 # allowed audio file formats, iPhones use m4a or wav, mp3 is used for testing
 AUDIO_FORMATS = [".mp3", ".wav", ".m4a"]
 
@@ -99,6 +103,7 @@ def transcription_service(filename: str, clean_up=False) -> str:
         #print(text)
     else:
         # If transcription failed, throw an error
+        raise TranscriptionFailure("Transcription failed.")
         return "Transcription failed."
 
     # if cleanup was passed in, cleanup by deleting job and audio file
