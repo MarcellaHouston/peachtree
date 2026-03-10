@@ -120,9 +120,9 @@ def query_goals(
     # Combine conditions: ChromaDB requires $and when there are multiple filters,
     # a single dict when there's one, or None when there are no filters at all
     where = (
-        {"$and": conditions} if len(conditions) > 1
-        else conditions[0] if conditions
-        else None
+        {"$and": conditions}
+        if len(conditions) > 1
+        else conditions[0] if conditions else None
     )
 
     # query_texts: ChromaDB embeds this string and finds the closest goal contexts

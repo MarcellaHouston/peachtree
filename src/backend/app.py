@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
-from backend.sql_db import Database
+from sql_db import Database
 
 app = Flask(__name__)
 
