@@ -58,11 +58,11 @@ def cleanup(s3_filename: str, job_name: str) -> None:
     print(f"Deleted {s3_filename} from s3 and {job_name} from AWS Transcribe")
 
 
-def transcription_service(filename: str, clean_up=False) -> None:
-    """Given an audio file, perform a transcription job on its message"""
+def transcription_service(filename: str, clean_up=False) -> str:
+    """Given an audio file, perform a transcription job on its message and return the transcription"""
     base = os.path.basename(filename)
     name, end = os.path.splitext(base)
-    # If the filename isn't a .mp3 file, it cannot be in our
+    # If the filename isn't an accepted audio format, it can't be transcribed
     if end not in AUDIO_FORMATS:
         raise InvalidAudioFile("File should be .mp3, .m4a, or .wav format")
 
@@ -90,16 +90,20 @@ def transcription_service(filename: str, clean_up=False) -> None:
         time.sleep(5)
 
     # Once completed, fetch and print the English transcript
+    text = ""
     if job_status == 'COMPLETED':
         url = status['TranscriptionJob']['Transcript']['TranscriptFileUri']
         transcript_json = requests.get(url).json()
         text = transcript_json['results']['transcripts'][0]['transcript']
-        print("\nEnglish Transcription is:\n")
-        print(text)
+        #print("\nEnglish Transcription is:\n")
+        #print(text)
     else:
-        print("Transcription failed.")
+        # If transcription failed, throw an error
+        return "Transcription failed."
 
     # if cleanup was passed in, cleanup by deleting job and audio file
     if clean_up:
         cleanup(name, job_name)
-    return
+
+    # Return english transcription
+    return text
