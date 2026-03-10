@@ -1,4 +1,4 @@
-from db import store_conversation
+from backend.chromaDB.chroma_db import store_conversation
 
 USER_ID = "user_abc123"
 

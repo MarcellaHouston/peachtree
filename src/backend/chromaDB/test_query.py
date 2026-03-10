@@ -1,4 +1,8 @@
-from db import query_goals, get_transcript, get_user_conversations
+from backend.chromaDB.chroma_db import (
+    query_goals,
+    get_transcript,
+    get_user_conversations,
+)
 
 USER_ID = "user_abc123"
 
@@ -33,7 +37,9 @@ print("\n" + "=" * 60)
 print("QUERY: 'morning routine habits'  |  SINCE: Jan 1 2025")
 print("=" * 60)
 jan_1_2025 = 1735689600
-results = query_goals("morning routine habits", user_id=USER_ID, n_results=3, since_timestamp=jan_1_2025)
+results = query_goals(
+    "morning routine habits", user_id=USER_ID, n_results=3, since_timestamp=jan_1_2025
+)
 for title, meta in zip(
     [m["goal_title"] for m in results["metadatas"][0]],
     results["metadatas"][0],
