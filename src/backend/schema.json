@@ -6,10 +6,10 @@
     "measurable": "TEXT NOT NULL CHECK(measurable IN ('completion', 'scalar', 'count', 'range'))",
     "start_date": "TEXT DEFAULT CURRENT_DATE",
     "end_date": "TEXT NOT NULL",
-    "user": "TEXT NOT NULL"
+    "user_id": "TEXT NOT NULL"
   },
   "tasks": {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "task_id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "goal_id": "INTEGER NOT NULL",
     "task": "TEXT NOT NULL",
     "weekly_frequency": "INTEGER NOT NULL",
@@ -19,5 +19,11 @@
     "end_date": "TEXT NOT NULL",
     "impetus": "INTEGER NOT NULL CHECK(impetus BETWEEN 1 AND 5)",
     "FOREIGN KEY (goal_id)": "REFERENCES goals(id) ON DELETE CASCADE"
+  },
+  "users": {
+    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "username": "TEXT NOT NULL UNIQUE",
+    "password": "TEXT NOT NULL",
+    "week_schedule": "TEXT"
   }
 }
