@@ -11,21 +11,39 @@ struct EditGoalView: View {
     @State private var goal = GoalItemBuilder()
         .title("Go to the gym 3 times a week.")
         .category("Fitness")
-        .due(Date(timeIntervalSinceNow: 1000))
+        .due(Date(timeIntervalSinceNow: 10000))
         .mon().wed().fri()
         .build()
+    @State private var newEndDate = Date()
+    @State private var showingDatePicker = false
+    
+    @State private var newCategory = ""
+    @State private var showingCategoryField = false
+    
+    @State private var showingPausePopup = false
+    @State private var showingDeletePopup = false
+    
+    @Binding var isShowing: Bool
     
     var body: some View {
         VStack(spacing: 0) {
             // Title and pause area
             HStack{
-                Text(goal.title).SmallHeader()
+                TextField("Enter Goal Title", text: $goal.title)
                 Button(goal.isPaused ? "Unpause" : "Pause") {
-                    goal.isPaused.toggle()
+                    if goal.isPaused{
+                        goal.isPaused.toggle()
+                    } else {
+                        showingPausePopup = true
+                    }
                 }
                 .buttonStyle(PurpleButtonStyle(active: goal.isPaused))
 
             }
+            .padding(5)
+            
+            
+                .frame(width: 360)
             
             // Header image
             Text("img")
@@ -50,14 +68,22 @@ struct EditGoalView: View {
                     HStack {
                         if let cat = goal.category {
                             Button(cat) {
-                                
+                                goal.category = nil
                             }
                             .buttonStyle(PurpleButtonStyle(active: true))
                         }
                         Button("Other") {
-                            
+                            showingCategoryField.toggle()
                         }
                         .buttonStyle(PurpleButtonStyle(active: false))
+                        if showingCategoryField {
+                            TextField("Enter new category", text: $newCategory)
+                            Button("Set") {
+                                showingCategoryField = false
+                                goal.category = newCategory
+                            }
+                            .buttonStyle(PurpleButtonStyle(active: true))
+                        }
                     }
                     
                     // Difficulty spot
@@ -112,10 +138,28 @@ struct EditGoalView: View {
                     
                     // Ends on spot
                     Text("Ends On").SmallHeader()
-                    Button(goal.due?.formatted(date: .abbreviated, time: .omitted) ?? "None"){
-                        
+                    HStack{
+                        Button(goal.due?.formatted(date: .abbreviated, time: .omitted) ?? "Never"){
+                            if goal.due != nil{
+                                goal.due = nil
+                            }else{
+                                showingDatePicker.toggle()
+                            }
+                        }
+                        .buttonStyle(PurpleButtonStyle(active: goal.due != nil))
+                        if showingDatePicker && goal.due == nil {
+                            DatePicker(
+                                "New Date:",
+                                selection: $newEndDate,
+                                displayedComponents: [.date]
+                            )
+                            Button("Set"){
+                                showingDatePicker = false
+                                goal.due = newEndDate
+                            }
+                            .buttonStyle(PurpleButtonStyle(active: true))
+                        }
                     }
-                    .buttonStyle(PurpleButtonStyle(active: goal.due != nil))
                 }
             }
             .padding(.horizontal, 10)
@@ -127,15 +171,17 @@ struct EditGoalView: View {
             // Footer with delete and confirm buttons
             HStack {
                 Button("Delete") {
-                    
+                    showingDeletePopup = true
+                    // TODO: Inform the backend
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Cancel") {
-                    
+                    isShowing = false
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
-                    
+                    isShowing = false
+                    // TODO: Inform the backend
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
@@ -144,21 +190,72 @@ struct EditGoalView: View {
         .background(.white)
         .frame(maxHeight: 570)
         .cornerRadius(15)
+        
+        // Confirmation popups are overlayed if their respective variables are on
+        .overlay{
+            if showingDeletePopup{
+                ConfirmPopup(isShown: $showingDeletePopup, prompt: "Are you sure you want to delete this goal?", desc: "If you need to take a break, you can pause this goal instead. You can also use the AI Goal Guidance feature to help make the goal more manageable.", confirm: "Delete", effect: {
+                    // TODO: Delete the goal
+                    isShowing = false
+                }
+                )
+            } else if showingPausePopup {
+                ConfirmPopup(isShown: $showingPausePopup, prompt: "Need a break?", desc: "No worries—jump back in whenever you're ready. Want to keep going? Try AI Goal Guidance to make your goal more manageable.", confirm: "Pause Goal", effect: {
+                    goal.isPaused = true
+                    isShowing = false
+                    // TODO: Pause the goal
+                }
+                )
+            }
+        }
     }
+}
+
+// Reusable view for any kind of confirmation popup
+// Automatically closes self upon hitting cancel or confirm
+private struct ConfirmPopup: View {
+    @Binding var isShown: Bool // Pass a variable like '$showingPopup' to bind
     
+    let prompt: String
+    let desc: String
     
+    let confirm: String
+    let effect: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(prompt).BigHeader()
+            Text(desc)
+            HStack{
+                Button("Cancel") {
+                    isShown = false
+                }
+                .buttonStyle(PurpleButtonStyle(active: false))
+                Button(confirm) {
+                    effect()
+                    isShown = false
+                }
+                .buttonStyle(PurpleButtonStyle(active: true))
+            }
+        }
+        .frame(width: 310)
+        .background(.white)
+        .cornerRadius(15)
+    }
 }
 
 private extension Text {
     func SmallHeader() -> Self {
         self.bold()
     }
+    func BigHeader() -> Self {
+        self.font(.system(size: 32, weight: .regular))
+    }
 }
 
 private struct PurpleButtonStyle: ButtonStyle {
     let active: Bool
-    
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, 10)
@@ -172,17 +269,26 @@ private struct PurpleButtonStyle: ButtonStyle {
                         .stroke(.gray, lineWidth: 0.6)
                 }
             }
-
-    
     }
 }
 
 
-
+// A small example of using this popup
+// You probably won't need the @Previewable
 #Preview {
+    @Previewable @State var showingEditPopup = false
+    
     VStack(spacing: 0) {
-        EditGoalView()
+        Button("Edit Goal"){
+            showingEditPopup = true
+        }
+        .buttonStyle(PurpleButtonStyle(active: false))
     }
     .frame(width: 999, height: 999)
     .background(.gray)
+    .overlay{
+        if showingEditPopup {
+            EditGoalView(isShowing: $showingEditPopup)
+        }
+    }
     }
