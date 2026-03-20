@@ -407,5 +407,90 @@ class TestWeeklySchedule(IntegrationTestCase):
         self.assertEqual(resp.get_json()["schedule"], {})
 
 
+# ---------------------------------------------------------------------------
+# POST /daily_goal_digest  (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestDailyGoalDigest(IntegrationTestCase):
+    def _setup_user_with_task(self, username="alice"):
+        # Insert user, goal, and task, then manually set today's day in week_schedule
+        from datetime import date
+        today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
+            (date.today().weekday() + 1) % 7
+        ]
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            (username, "pw", json.dumps({"Mon": 3, "Wed": 2, "Fri": 4}))
+        )
+        self.real_db._commit()
+
+        self.create_goal(user=username, start_date=date.today().isoformat(), end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+
+        self.real_db._run_param(
+            """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
+               start_date, end_date, impetus) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Go for a run", 3, 1, date.today().isoformat(), "2027-12-31", 4)
+        )
+        self.real_db._commit()
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+
+        # Write a week_schedule that places this task on today
+        all_days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+        schedule = json.dumps({
+            "curr_week_start": "2026-03-15",
+            today_name: [task_id],
+            **{d: [] for d in all_days if d != today_name}
+        })
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?", (schedule, username)
+        )
+        self.real_db._commit()
+        return task_id
+
+    def test_returns_todays_tasks_with_goal_name(self):
+        task_id = self._setup_user_with_task()
+        resp = self.post_json("/daily_goal_digest", {"user_id": "alice"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(len(body["tasks"]), 1)
+        t = body["tasks"][0]
+        self.assertEqual(t["task_id"], task_id)
+        self.assertEqual(t["task"], "Go for a run")
+        self.assertEqual(t["goal_name"], "Run 5k")
+
+    def test_response_shape(self):
+        self._setup_user_with_task()
+        body = self.post_json("/daily_goal_digest", {"user_id": "alice"}).get_json()
+        t = body["tasks"][0]
+        self.assertIn("task_id", t)
+        self.assertIn("task", t)
+        self.assertIn("goal_name", t)
+        self.assertEqual(len(t), 3)  # only these 3 fields
+
+    def test_day_field_matches_today(self):
+        from datetime import date
+        today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
+            (date.today().weekday() + 1) % 7
+        ]
+        self._setup_user_with_task()
+        body = self.post_json("/daily_goal_digest", {"user_id": "alice"}).get_json()
+        self.assertEqual(body["day"], today_name)
+
+    def test_no_schedule_returns_empty(self):
+        self.real_db._run_param(
+            "INSERT INTO users (username, password) VALUES (?, ?)", ("bob", "pw")
+        )
+        self.real_db._commit()
+        resp = self.post_json("/daily_goal_digest", {"user_id": "bob"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["tasks"], [])
+
+    def test_missing_user_id_returns_400(self):
+        resp = self.post_json("/daily_goal_digest", {})
+        self.assertEqual(resp.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

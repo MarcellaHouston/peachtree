@@ -191,5 +191,22 @@ def weekly_schedule():
     return jsonify({"new_week": new_week, "schedule": schedule})
 
 
+@app.route("/daily_goal_digest", methods=["POST"])
+def daily_goal_digest():
+    # Called on startup after /schedule/weekly.
+    # Returns today's tasks for the user, each paired with its goal name.
+    # Response: { day: "monday", tasks: [{ task_id, task, goal_name, impetus, ... }] }
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
+        (date.today().weekday() + 1) % 7
+    ]
+    tasks = db.get_daily_tasks(user_id)
+    return jsonify({"day": today_name, "tasks": tasks})
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5010)

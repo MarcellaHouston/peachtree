@@ -168,6 +168,34 @@ class Database:
         schedule = self.assign_weekly_tasks(user_id, this_sunday)
         return True, schedule
 
+    def get_daily_tasks(self, user_id: str) -> list:
+        # Get today's task list from the stored week_schedule, then fetch full
+        # task details + the parent goal name for each one.
+        from datetime import date
+        today_name = _ALL_DAYS[(date.today().weekday() + 1) % 7]  # e.g. "monday"
+
+        row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not row or not row[0]:
+            return []
+
+        schedule = json.loads(row[0])
+        task_ids = schedule.get(today_name, [])
+        if not task_ids:
+            return []
+
+        # Fetch task details alongside the goal name in one query
+        placeholders = ", ".join(["?"] * len(task_ids))
+        rows = self._run_param(f"""
+            SELECT t.task_id, t.task, g.name AS goal_name
+            FROM tasks t
+            JOIN goals g ON t.goal_id = g.id
+            WHERE t.task_id IN ({placeholders})
+        """, task_ids).fetchall()
+
+        return [{"task_id": r[0], "task": r[1], "goal_name": r[2]} for r in rows]
+
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
         assert table in self.schema
