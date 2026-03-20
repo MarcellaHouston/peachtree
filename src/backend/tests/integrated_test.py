@@ -105,6 +105,7 @@ class TestCreateGoalIntegration(IntegrationTestCase):
         self.assertEqual(row[4], "2026-01-01")
         self.assertEqual(row[5], "2026-12-31")
         self.assertEqual(row[6], "bob")
+        self.assertEqual(row[7], "2026-01-01")  # active_date == start_date on create
 
     def test_default_start_date_stored_as_today(self):
         # start_date is optional in the API; the app should default it to
@@ -203,6 +204,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
             "start_date",
             "end_date",
             "user",
+            "active_date",
         ):
             self.assertIn(key, g)
 
@@ -297,6 +299,112 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
             },
         )
         self.assertEqual(resp.status_code, 204)
+
+
+# ---------------------------------------------------------------------------
+# POST /goals/snooze  (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestSnoozeGoalIntegration(IntegrationTestCase):
+    def _create_and_get_id(self, **overrides):
+        self.create_goal(**overrides)
+        rows = self.real_db.select("goals", "all")
+        return rows[0][0]
+
+    def test_snooze_pushes_active_date_forward(self):
+        goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
+        resp = self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+        self.assertEqual(resp.status_code, 204)
+        rows = self.real_db.select("goals", "all")
+        self.assertEqual(rows[0][7], "2026-01-11")  # 2026-01-01 + 2 weeks = Jan 15 (Thu) → back to Sun Jan 11
+
+    def test_snooze_does_not_change_start_date(self):
+        goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
+        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 3})
+        rows = self.real_db.select("goals", "all")
+        self.assertEqual(rows[0][4], "2026-01-01")  # start_date unchanged
+
+    def test_snooze_nonexistent_goal_returns_204(self):
+        resp = self.post_json("/goals/snooze", {"id": 9999, "weeks": 1})
+        self.assertEqual(resp.status_code, 204)
+
+    def test_snooze_missing_fields_returns_400(self):
+        resp = self.post_json("/goals/snooze", {"id": 1})
+        self.assertEqual(resp.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# POST /schedule/weekly  (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestWeeklySchedule(IntegrationTestCase):
+    def _insert_user(self, username, week_availability=None):
+        avail = json.dumps(week_availability or {"Mon": 3, "Wed": 2, "Fri": 4})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            (username, "pw", avail)
+        )
+        self.real_db._commit()
+
+    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3):
+        self.real_db._run_param(
+            """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
+               start_date, end_date, impetus)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Do the thing", weekly_frequency, weight,
+             date.today().isoformat(), "2027-12-31", impetus)
+        )
+        self.real_db._commit()
+
+    def test_new_week_assigns_tasks(self):
+        self._insert_user("alice")
+        self.create_goal(user="alice", start_date=date.today().isoformat(), end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=2)
+
+        resp = self.post_json("/schedule/weekly", {"user_id": "alice"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["new_week"])
+        schedule = body["schedule"]
+        # 2 occurrences should be assigned across Mon/Wed/Fri
+        total = sum(len(v) for k, v in schedule.items() if k != "curr_week_start")
+        self.assertEqual(total, 2)
+        self.assertIn("curr_week_start", schedule)
+
+    def test_same_week_returns_cached_schedule(self):
+        self._insert_user("alice")
+        self.create_goal(user="alice", start_date=date.today().isoformat(), end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+
+        # First call — new week
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        # Second call — same week
+        resp = self.post_json("/schedule/weekly", {"user_id": "alice"})
+        body = resp.get_json()
+        self.assertFalse(body["new_week"])
+
+    def test_no_availability_returns_empty_schedule(self):
+        self.real_db._run_param(
+            "INSERT INTO users (username, password) VALUES (?, ?)", ("bob", "pw")
+        )
+        self.real_db._commit()
+        resp = self.post_json("/schedule/weekly", {"user_id": "bob"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["schedule"], {})
+
+    def test_missing_user_id_returns_400(self):
+        resp = self.post_json("/schedule/weekly", {})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_user_returns_empty(self):
+        resp = self.post_json("/schedule/weekly", {"user_id": "nobody"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["schedule"], {})
 
 
 if __name__ == "__main__":
