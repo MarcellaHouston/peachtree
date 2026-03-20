@@ -7,8 +7,9 @@
 import Foundation
 
 //struct represents one task on the Today's Tasks screen
-//stores task text and whether the user has completed it
-//id used so program can display each task on the list
+//id gives each task in taskitem struct its own id, makes it easier to iterate and change specific taskitem elements
+//title is the task text for each taskitem
+//isCompleted is used to check whether a checkmark has been checked or not (True ? False)
 struct TaskItem: Identifiable {
     let id = UUID()
     let title: String

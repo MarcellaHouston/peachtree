@@ -8,8 +8,19 @@ import SwiftUI
 
 //display TodayTasksView
 struct ContentView: View {
+    @State private var selectedTab: AppTab = .todayTasks
+    
     var body: some View {
-        TodayTasksView()
+        switch selectedTab {
+        case .todayTasks:
+            TodayTasksView(selectedTab: $selectedTab)
+        case .goals:
+            GoalsView(selectedTab: $selectedTab)
+        case .weeklyRecap:
+            WeeklyRecapView(selectedTab: $selectedTab)
+        case .endOfDay:
+            EODCheckinView(selectedTab: $selectedTab)
+        }
     }
 }
 

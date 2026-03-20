@@ -11,6 +11,8 @@ import SwiftUI
 //it combines the header, the list of tasks, the progress section, and the bottom navigation
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
+    @Binding var selectedTab: AppTab
+    
     @State private var tasks: [TaskItem] = [
         TaskItem(title: "Went to the gym", isCompleted: false),
         TaskItem(title: "Wrote a page in my journal", isCompleted: false),
@@ -49,19 +51,22 @@ struct TodayTasksView: View {
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                     .padding(.top, 48)
-                
+                    .padding(.bottom, 34)
+
                 //task list section
                 //each task is generated dynamically from the tasks array
                 //using bindings allows each row to modify the task state directly
-                VStack(spacing: 26) {
-                    ForEach($tasks) { $task in TodayTaskRow(task: $task) }
+                //only this section scrolls so the progress area stays in place
+                ScrollView(showsIndicators: true) {
+                    VStack(spacing: 26) {
+                        ForEach($tasks) { $task in
+                            TodayTaskRow(task: $task)
+                        }
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 140)
                 }
-                .padding(.top, 34)
-                .padding(.horizontal, 28)
-                
-                //this spacer pushes the progress section toward the bottom
-                //it keeps the layout balanced regardless of device height
-                Spacer(minLength: 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 //progress section that shows how many tasks have been completed
                 //includes a text summary and a visual progress bar
@@ -77,31 +82,34 @@ struct TodayTasksView: View {
                         .frame(width: 264, height: 32)
                         .overlay {
                             Capsule()
-                            .fill(Color(red: 0.77, green: 0.69, blue: 0.94))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
+                                .fill(Color(red: 0.77, green: 0.69, blue: 0.94))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
                         }
                         //the darker purple capsule represents actual progress
                         //its width changes dynamically based on completed tasks
                         .overlay(alignment: .leading) {
                             Capsule()
-                            .fill(Color(red: 0.52, green: 0.21, blue: 0.95))
-                            .frame(width: progressWidth, height: 24)
-                            .padding(.leading, 7)
+                                .fill(Color(red: 0.52, green: 0.21, blue: 0.95))
+                                .frame(width: progressWidth, height: 24)
+                                .padding(.leading, 7)
                         }
                 }
+                .padding(.top, 10)
                 .padding(.bottom, 18)
             }
             //this section fills the remaining screen space with the light background color
             //it visually separates the task area from the header and navigation bar
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
-            
+
             //bottom navigation bar for switching between major app sections
-            BottomNavView()
+            BottomNavView(selectedTab: $selectedTab)
         }
         //black background ensures the header and navigation bar blend into the edges of the screen
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
@@ -124,19 +132,20 @@ private struct TodayTaskRow: View {
                     .overlay {
                         if task.isCompleted {
                             Image(systemName: "checkmark")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white)
                         }
                     }
-                //if the task is not completed a dark border outlines the square
+                    //if the task is not completed a dark border outlines the square
                     .overlay {
                         if !task.isCompleted {
                             Rectangle()
-                            .stroke(Color(red: 0.34, green: 0.33, blue: 0.39), lineWidth: 4.5)
+                                .stroke(Color(red: 0.34, green: 0.33, blue: 0.39), lineWidth: 4.5)
                         }
                     }
             }
             .buttonStyle(.plain)
+
             //task content button
             //this displays the task name inside the purple rounded rectangle
             Button {
@@ -146,16 +155,17 @@ private struct TodayTaskRow: View {
                     Spacer(minLength: 0)
 
                     Text(task.title)
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(.black)
-                    .lineLimit(1)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(.black)
+                        .lineLimit(1)
 
                     Spacer(minLength: 0)
+
                     //chevron icon indicates that tapping the task may lead to more details
                     Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.black)
-                    .padding(.trailing, 16)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.trailing, 16)
                 }
                 //rounded purple background for the task button
                 .frame(height: 46)
@@ -169,5 +179,7 @@ private struct TodayTaskRow: View {
 }
 
 #Preview {
-    ContentView()
+    TodayTasksView(selectedTab: .constant(.todayTasks))
 }
+
+
