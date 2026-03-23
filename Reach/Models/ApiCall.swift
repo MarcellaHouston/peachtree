@@ -21,15 +21,27 @@ final class ApiCall {
     private(set) var tasks = [TaskItem]()
     
     func refreshGoals() async {
+        // Wrapper struct because result is an object, not an array
         struct Res: Codable {
             let goals: [GoalSchema]
         }
-
         let body: [String: Any] = [:]
-
         do {
             let res: Res = try await sendRequest("POST", body, "goals")
             self.goals = res.goals.map() { x in x.goal() }
+        } catch {
+            print(error)
+        }
+    }
+    
+    func refreshTasks() async {
+        struct Res: Codable {
+            let tasks: [TaskSchema]
+        }
+        let body: [String: Any] = [:]
+        do {
+            let res: Res = try await sendRequest("POST", body, "tasks")
+            self.tasks = res.tasks.map() { x in x.buildTask() }
         } catch {
             print(error)
         }
@@ -58,8 +70,7 @@ final class ApiCall {
             throw URLError(.badServerResponse)
         }
 
-        print(data)
-        print(String(data: data, encoding: .utf8)!)
+        //print(String(data: data, encoding: .utf8)!)
         let decodedData = try JSONDecoder().decode(T.self, from: data)
         return decodedData
     }
