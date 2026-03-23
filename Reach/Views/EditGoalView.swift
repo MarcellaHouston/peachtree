@@ -190,6 +190,11 @@ struct EditGoalView: View {
         .background(.white)
         .frame(maxHeight: 570)
         .cornerRadius(15)
+        .task {
+            await ApiCall.shared.refreshGoals()
+            goal = ApiCall.shared.goals[1]
+            print(ApiCall.shared.goals)
+        }
         
         // Confirmation popups are overlayed if their respective variables are on
         .overlay{
