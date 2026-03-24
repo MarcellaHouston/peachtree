@@ -8,12 +8,7 @@
 import SwiftUI
 
 struct EditGoalView: View {
-    @State private var goal = GoalItemBuilder()
-        .title("Go to the gym 3 times a week.")
-        .category("Fitness")
-        .due(Date(timeIntervalSinceNow: 10000))
-        .mon().wed().fri()
-        .build()
+    @State private var goal: GoalItem
     @State private var newEndDate = Date()
     @State private var showingDatePicker = false
     
@@ -23,7 +18,16 @@ struct EditGoalView: View {
     @State private var showingPausePopup = false
     @State private var showingDeletePopup = false
     
+    // Store some @State variable wherever you call an EditGoalView
+    // When you call init, set isShowingIn: $variable
     @Binding var isShowing: Bool
+    
+    init(goal goalIn: GoalItem, isShowing isShowingIn: Binding<Bool>){
+        // This is a copy because GoalItem is a struct, not a class
+        goal = goalIn
+        // Add a leading _ to
+        _isShowing = isShowingIn
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -172,7 +176,6 @@ struct EditGoalView: View {
             HStack {
                 Button("Delete") {
                     showingDeletePopup = true
-                    // TODO: Inform the backend
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Cancel") {
@@ -181,7 +184,9 @@ struct EditGoalView: View {
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
                     isShowing = false
-                    // TODO: Inform the backend
+                    Task {
+                        await ApiCall.shared.updateGoal(goal: goal)
+                    }
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
@@ -195,7 +200,10 @@ struct EditGoalView: View {
         .overlay{
             if showingDeletePopup{
                 ConfirmPopup(isShown: $showingDeletePopup, prompt: "Are you sure you want to delete this goal?", desc: "If you need to take a break, you can pause this goal instead. You can also use the AI Goal Guidance feature to help make the goal more manageable.", confirm: "Delete", effect: {
-                    // TODO: Delete the goal
+                    // TODO: Ensure this works when backend fixes it
+                    Task {
+                        await ApiCall.shared.deleteGoal(goal: goal)
+                    }
                     isShowing = false
                 }
                 )
@@ -203,7 +211,10 @@ struct EditGoalView: View {
                 ConfirmPopup(isShown: $showingPausePopup, prompt: "Need a break?", desc: "No worries—jump back in whenever you're ready. Want to keep going? Try AI Goal Guidance to make your goal more manageable.", confirm: "Pause Goal", effect: {
                     goal.isPaused = true
                     isShowing = false
-                    // TODO: Pause the goal
+                    // TODO: Make sure this works when backend implements pausing
+                    Task {
+                        await ApiCall.shared.updateGoal(goal: goal)
+                    }
                 }
                 )
             }
@@ -278,6 +289,7 @@ private struct PurpleButtonStyle: ButtonStyle {
 #Preview {
     @Previewable @State var showingEditPopup = false
     
+    
     VStack(spacing: 0) {
         Button("Edit Goal"){
             showingEditPopup = true
@@ -286,9 +298,21 @@ private struct PurpleButtonStyle: ButtonStyle {
     }
     .frame(width: 999, height: 999)
     .background(.gray)
+    .task {
+        await ApiCall.shared.refreshGoals()
+        // goal = ApiCall.shared.goals.last ?? goal
+    }
     .overlay{
         if showingEditPopup {
-            EditGoalView(isShowing: $showingEditPopup)
+            let goal = GoalItemBuilder()
+                .title("Go to the gym 3 times a week.")
+                .category("Fitness")
+                .due(Date(timeIntervalSinceNow: 10000))
+                .mon().wed().fri()
+                .id(4)
+                .build()
+            EditGoalView(goal: ApiCall.shared.goals.last ?? goal,
+                isShowing: $showingEditPopup)
         }
     }
     }
