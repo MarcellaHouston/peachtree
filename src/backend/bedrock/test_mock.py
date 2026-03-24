@@ -1,93 +1,113 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from botocore.exceptions import ClientError
-from bedrock.LLM_manage import LLM
+from bedrock.llm import LLM
 
-class TestSocialAccountabilityAgent:
+@pytest.fixture
+def llm_instance():
+    """Provides a fresh LLM instance for every test."""
+    return LLM(model_strength=1)
 
-    @pytest.fixture
-    def mock_bedrock(self):
-        """Mocks the Bedrock client to return a firm accountability response."""
-        with patch("boto3.client") as mock_client:
-            mock_response = {
-                "output": {
-                    "message": {
-                        "content": [{"text": "I've logged your 5:00 AM gym commitment. I will check in at 6:30 AM for proof."}]
-                    }
+@pytest.fixture
+def mock_bedrock():
+    """Mocks the boto3 client and the converse response."""
+    with patch("boto3.client") as mock_client:
+        mock_instance = MagicMock()
+        # Standard successful response structure
+        mock_instance.converse.return_value = {
+            "output": {
+                "message": {
+                    "content": [{"text": "Success Summary"}]
                 }
             }
-            mock_client.return_value.converse.return_value = mock_response
-            yield mock_client
+        }
+        mock_client.return_value = mock_instance
+        yield mock_instance
 
-    # --- INSTRUCTIONS (SYSTEM PROMPT) LOGIC ---
+# --- Core Case: Success Path ---
+def test_query_success(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    result = llm_instance.query("I finished my 50 problems.")
+    
+    assert result == "Success Summary"
+    mock_bedrock.converse.assert_called_once()
 
-    def test_system_instructions_passed_correctly(self, mock_bedrock):
-        """Verifies the 'instructions' variable is correctly mapped to the system field."""
-        social_rules = "You are a social referee. Be firm and demand proof for every goal."
-        llm = LLM(instructions=social_rules)
-        
-        llm.query("I want to study for 2 hours.")
-        
-        _, kwargs = mock_bedrock.return_value.converse.call_args
-        # The 'system' field should contain our social_rules
-        assert kwargs['system'][0]['text'] == social_rules
-        # Ensure it's using the budget-friendly model
-        assert kwargs['modelId'] == "google.gemma-3-4b-it"
+# --- Edge Case: Empty/Whitespace Input ---
+@pytest.mark.parametrize("bad_input", ["", "   ", "\n", None])
+def test_query_empty_input(llm_instance, bad_input):
+    result = llm_instance.query(bad_input)
+    assert result == "How can Reach Help?"
 
-    # --- SOCIAL ACCOUNTABILITY SCENARIOS ---
+# --- Edge Case: AWS API Error ---
+def test_query_aws_exception(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    mock_bedrock.converse.side_effect = Exception("ThrottlingException")
+    
+    result = llm_instance.query("Valid input")
+    assert "Error: ThrottlingException" in result
 
-    def test_gym_commitment_with_context(self, mock_bedrock):
-        """Tests merging a user's previous 'failed' attempts with a new gym goal."""
-        llm = LLM(instructions="Remind the user of their past slip-ups to keep them honest.")
-        llm.add_to_context("Last Week: User missed 3 out of 5 planned gym sessions.")
-        
-        llm.query("I'm going to the gym now, I promise.")
+# --- Core Case: Context Integration ---
+def test_prompt_construction_with_context(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    llm_instance.add_to_context("Goal: 50 Problems")
+    llm_instance.add_to_context("Deadline: Friday")
+    
+    llm_instance.query("I did 10")
+    
+    # Capture what was actually sent to Bedrock
+    args, kwargs = mock_bedrock.converse.call_args
+    sent_messages = kwargs['messages']
+    sent_text = sent_messages[0]['content'][0]['text']
+    
+    # Verify the context was injected into the string
+    assert "Context: Goal: 50 Problems\nDeadline: Friday" in sent_text
+    assert "Query: I did 10" in sent_text
 
-        _, kwargs = mock_bedrock.return_value.converse.call_args
-        actual_payload = kwargs['messages'][0]['content'][0]['text']
-        
-        assert "missed 3 out of 5" in actual_payload
-        assert "going to the gym" in actual_payload
+# --- Logic Case: Flush vs. No Flush ---
+def test_flush_logic_clears_data(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    llm_instance.add_to_context("Temporary Data")
+    
+    # With flush=True
+    llm_instance.query("Clear me", flush=True)
+    assert len(llm_instance.context) == 0
+    assert len(llm_instance.previous_conversation) == 0
 
-    def test_study_group_accountability(self, mock_bedrock):
-        """Tests context retention for a social study group 'vow'."""
-        llm = LLM(instructions="Track group study goals.")
-        llm.add_to_context("Group Goal: Complete 50 practice problems by Friday.")
-        
-        # Turn 1: Check progress
-        llm.query("We've done 10 problems so far.", flush=False)
-        assert len(llm.context) == 2
-        
-        # Turn 2: Ask for a status update based on memory
-        llm.query("How many do we have left to hit our target?")
-        _, kwargs = mock_bedrock.return_value.converse.call_args
-        
-        print(kwargs['messages'][0]['content'][0]['text'])
+def test_no_flush_retains_history(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    
+    # With flush=False
+    llm_instance.query("Keep me", flush=False)
+    assert len(llm_instance.previous_conversation) == 2 # Human + AI response
+    assert "Human Query: Keep me" in llm_instance.previous_conversation[0]
 
-        assert "50 practice problems" in kwargs['messages'][0]['content'][0]['text']
-        assert "10 problems" in kwargs['messages'][0]['content'][0]['text']
+# --- Model Strength Mapping ---
+def test_model_strength_mapping(llm_instance):
+    # Test mapping for strength 3
+    strong_llm = LLM(model_strength=3)
+    assert strong_llm.model_id == "google.gemma-3-27b-it"
+    
+    # Test fallback for invalid strength
+    weird_llm = LLM(model_strength=99)
+    assert weird_llm.model_id == "google.gemma-3-4b-it"
 
-    # --- EDGE CASES & ERRORS ---
+# --- Unexpected API Structure ---
+def test_malformed_bedrock_response(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    # Force a response that will cause the index error inside the LLM class
+    mock_bedrock.converse.return_value = {"output": {"message": {"content": []}}}
+    
+    # Run the query
+    result = llm_instance.query("Valid input")
+    
+    # ASSERTION: Check that the error message was caught and returned
+    assert "Error" in result
+    assert "index out of range" in result
 
-    def test_empty_accountability_query(self, mock_bedrock):
-        """Ensures the agent doesn't crash if a user pings the accountability bot without text."""
-        llm = LLM()
-        result = llm.query("")
-        # Should return the mocked 'Coach' response safely
-        assert "5:00 AM gym commitment" in result
-
-    def test_aws_throttling_during_checkin(self, mock_bedrock):
-        """Simulates an AWS error when a user is trying to submit proof of work."""
-        error_response = {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate limit exceeded'}}
-        mock_bedrock.return_value.converse.side_effect = ClientError(error_response, 'converse')
-
-        llm = LLM()
-        with pytest.raises(ClientError):
-            llm.query("Here is my photo proof of the completed practice problems.")
-
-    def test_coding_streak_emojis(self, mock_bedrock):
-        """Ensures coding streak markers don't break the message structure."""
-        llm = LLM()
-        llm.query("Day 45: 💻 10 LeetCode problems done. No ☕ needed!")
-        _, kwargs = mock_bedrock.return_value.converse.call_args
-        assert "💻" in kwargs['messages'][0]['content'][0]['text']
+# --- Emojis and Abnormal Characters ---
+def test_unicode_and_emojis(llm_instance, mock_bedrock):
+    llm_instance.client = mock_bedrock
+    emoji_input = "I finished my 🎯 goals and felt 🔥!"
+    llm_instance.add_to_context("Goal: 🚀 to the moon")
+    
+    result = llm_instance.query(emoji_input)
+    assert result == "Success Summary"

@@ -2,7 +2,7 @@ import boto3
 
 class LLM:
     def __init__(self, model_strength=1, max_tokens=1024,
-        instructions="You are a social accountability app that helps users create and achieve their goals."):
+        instructions="You are a social accountability app that helps users with their goals."):
         self.client = boto3.client("bedrock-runtime", region_name="us-east-2")
         self.system_instructions = instructions
         self.context = []
@@ -21,42 +21,56 @@ class LLM:
         """Appends new info to the local context list."""
         self.context.append(content)
 
-    def query(self, content, flush=True):
-        """Queries the LLM"""
+    def query(self, content: str, flush=True):
+        """
+        Queries the AI model through AWS Bedrock
+
+        Args:
+            content:    The textual input from the user
+            flush: True if all data stored in the LLM's context and conversation history
+                   should be erased after the query is completed.
+        """
+
+        # If user provides an empty input, return a basic message without connecting to AWS Bedrock
         if not content or not content.strip():
             return "How can Reach Help?"
 
-        prev_conv_head = "Previous Conversation:" if self.previous_conversation else ""
-        full_user_input = "\n".join([] + "Context:" + self.context + prev_conv_head +
-            self.previous_conversation + "Query:" + content)
+        # Construct message using user-input (content) along with past context if available
+        if self.context:
+            past_context = '\n'.join(self.context)
+            full_message = f"Context: {past_context}\n\nQuery: {content}"
+        else:
+            full_message = content
         
+        # Format message to be accepted by AWS Bedrock's converse method
+        converse_message = [{"role": "user", "content": [{"text": full_message}]}]
+
+        # Contact the Bedrock Agent
         try:
             response = self.client.converse(
                 modelId=self.model_id,
                 # Pass the system instructions into the system field
-                system=[{"text": self.system_instructions}], 
+                system=[{"text": self.system_instructions}],
                 # Put user input into messages field
-                messages=[{
-                    "role": "user",
-                    "content": [{"text": full_user_input}]
-                }],
+                messages=converse_message,
                 inferenceConfig={
                     "maxTokens": self.max_tokens,
-                    "temperature": 0.7
+                    "temperature": 0.3
                 }
             )
+
+            output = response["output"]["message"]["content"][0]["text"]
+
+            # If flush variable set to True, wipe the context and previous conversation history
+            if flush:
+                self.context = []
+                self.previous_conversation = []
+            # Otherwise append the content to the conversation history
+            else:
+                self.previous_conversation.append("Human Query: " + content)
+                self.previous_conversation.append("LLM Response: " + output)
+
+            return output
+
         except Exception as e:
             return f"Error: {str(e)}"
-        
-        output = response["output"]["message"]["content"][0]["text"]
-
-        # If flush variable set to True, wipe the context
-        if flush:
-            self.context = []
-            self.previous_conversation = []
-        # Otherwise append the content to the context
-        else:
-            self.previous_conversation.append("Human Query: " + content)
-            self.previous_conversation.append("LLM Response: " + output)
-
-        return output
