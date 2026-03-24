@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
+from bedrock.llm import LLM
 
 app = Flask(__name__)
 
@@ -206,6 +207,44 @@ def daily_goal_digest():
     ]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
+
+
+# ---------------------------------------------------------------------------
+# End of day summary
+# ---------------------------------------------------------------------------
+
+@app.route('/eod_summary', methods=["POST"])
+def eod_summary():
+    '''Given a transcription from a user's STT, return a LLM-generated summary'''
+    data = request.get_json()
+    user_id = data.get("user_id")
+    transcription = data.get("transcription")
+
+    if not user_id:
+        return jsonify({"error": "Missing user id"}), 400
+    
+    if not transcription:
+        return jsonify({"error": "Missing transcription"}), 400
+
+    # Get user's daily tasks
+    tasks = db.get_daily_tasks(user_id)
+
+    # Setup LLM with eod_summary instructions
+    eod_instructions = "You are a social accountability app giving an end" \
+                       " of the day summary. You will be given a transcription" \
+                       " and the daily tasks of a user. Use both of these to" \
+                       " give a summary of the user's day."
+    llm_model = LLM(model_strength=1, instructions=eod_instructions)
+
+    # Add daily tasks to the LLM's context
+    daily_tasks = [f"Task: {t['task']}, Overarching Goal: {t['goal_name']}" for t in tasks]
+    formatted_tasks = " ".join(formatted_tasks)
+    llm_model.add_to_context(daily_tasks)
+
+    # Query the LLM with the transcription, which returns the summary
+    summary = llm_model.query(content=transcription)
+    return jsonify({"summary": summary})
+
 
 
 if __name__ == "__main__":
