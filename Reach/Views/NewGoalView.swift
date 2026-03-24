@@ -8,12 +8,7 @@
 import SwiftUI
 
 struct NewGoalView: View {
-    @State private var goal = GoalItemBuilder()
-        .title("Go to the gym 3 times a week.")
-        .category("Fitness")
-        .due(Date(timeIntervalSinceNow: 10000))
-        .mon().wed().fri()
-        .build()
+    @State private var goal = GoalItem()
     @State private var newEndDate = Date()
     @State private var showingDatePicker = false
     
@@ -61,7 +56,7 @@ struct NewGoalView: View {
                             Text("Type or say your goal here")
                                 .foregroundStyle(.secondary)
                                 .padding(.bottom, -5)
-                            TextField("Enter Goal Title", text: $goal.title)
+                            TextField("E.g. Read 10 pages a day", text: $goal.title)
                         }
                         Circle()
                             .frame(width: 34)
