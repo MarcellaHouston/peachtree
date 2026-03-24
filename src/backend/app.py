@@ -4,12 +4,16 @@ from sql_db import Database
 
 app = Flask(__name__)
 
-db = Database(create=False)  # set True only once if you want to recreate tables
+# Single shared database connection for all requests.
+# Set create=True only once to wipe and rebuild tables from schema.json.
+db = Database(create=False)
 
 ALLOWED_MEASURABLE = {"completion", "scalar", "count", "range"}
 
 
 def parse_date(s):
+    # Convert a "YYYY-MM-DD" string to a date object.
+    # Returns None if the input is empty or already a date.
     if not s:
         return None
     if isinstance(s, str):
@@ -18,6 +22,8 @@ def parse_date(s):
 
 
 def validate_goal(goal):
+    # Check that all required goal fields are present and valid.
+    # Returns a list of error strings (empty list = no errors).
     errors = []
 
     if not goal.get("name"):
@@ -37,14 +43,19 @@ def validate_goal(goal):
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Goals
+# ---------------------------------------------------------------------------
+
 @app.route("/goals", methods=["POST"])
 def get_goals():
+    # Return all goals that overlap the requested date range.
+    # If no dates are provided, defaults to goals active in the past 7 days.
     data = request.get_json(silent=True) or {}
 
     start_date = parse_date(data.get("start_date"))
     end_date = parse_date(data.get("end_date"))
 
-    # Default: past 7 days
     if not start_date and not end_date:
         end_date = date.today()
         start_date = end_date - timedelta(days=7)
@@ -52,7 +63,6 @@ def get_goals():
     rows = db.select("goals", "all")
     results = []
     for row in rows:
-        # Assuming select returns tuples in column order:
         goal = {
             "id": row[0],
             "name": row[1],
@@ -61,12 +71,13 @@ def get_goals():
             "start_date": row[4],
             "end_date": row[5],
             "user": row[6],
+            "active_date": row[7],
         }
 
         g_start = parse_date(goal.get("start_date"))
         g_end = parse_date(goal.get("end_date"))
 
-        # Date overlap filter
+        # Exclude goals whose date range doesn't overlap with the filter window
         if start_date and g_end and g_end < start_date:
             continue
         if end_date and g_start and g_start > end_date:
@@ -79,6 +90,8 @@ def get_goals():
 
 @app.route("/goals/create", methods=["POST"])
 def create_goal():
+    # Create a new goal. Required fields: name, measurable, end_date, user.
+    # start_date defaults to today; active_date is set equal to start_date.
     data = request.get_json()
     if not data or "goal" not in data:
         return jsonify({"error": "Missing 'goal' in request body"}), 400
@@ -89,15 +102,14 @@ def create_goal():
     if errors:
         return jsonify({"errors": errors}), 400
 
-    # Default start_date = today
     if not goal.get("start_date"):
         goal["start_date"] = date.today().isoformat()
 
-    # Normalize dates
     goal["start_date"] = parse_date(goal["start_date"]).isoformat()
     goal["end_date"] = parse_date(goal["end_date"]).isoformat()
+    # active_date starts equal to start_date and can be pushed forward via snooze
+    goal["active_date"] = goal["start_date"]
 
-    # Insert into DB (order must match schema, excluding id)
     db.insert(
         "goals",
         [
@@ -107,6 +119,7 @@ def create_goal():
             goal["start_date"],
             goal["end_date"],
             goal["user"],
+            goal["active_date"],
         ],
     )
 
@@ -115,6 +128,8 @@ def create_goal():
 
 @app.route("/goals/update", methods=["POST"])
 def update_goal():
+    # Update an existing goal by id. All required fields must still be provided
+    # (same validation as create). Only the fields passed in will be changed.
     data = request.get_json()
     if not data or "goal" not in data:
         return jsonify({"error": "Missing 'goal' in request body"}), 400
@@ -129,7 +144,6 @@ def update_goal():
     if errors:
         return jsonify({"errors": errors}), 400
 
-    # Normalize dates if present
     updates = goal.copy()
     updates.pop("id", None)
 
@@ -137,10 +151,61 @@ def update_goal():
         updates["start_date"] = parse_date(updates["start_date"]).isoformat()
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
+    # The API uses "user" but the DB column is "user_id" — remap it here
+    if "user" in updates:
+        updates["user_id"] = updates.pop("user")
 
     db.update("goals", goal_id, updates)
 
     return "", 204
+
+
+@app.route("/goals/snooze", methods=["POST"])
+def snooze_goal():
+    # Defer a goal by pushing its active_date forward by N weeks (snapped to Sunday).
+    # The goal stays in the system but won't appear as active until that date.
+    data = request.get_json()
+    goal_id = data.get("id")
+    weeks = data.get("weeks")
+    if not goal_id or not weeks:
+        return jsonify({"error": "Missing id or weeks"}), 400
+    db.snooze(goal_id, weeks)
+    return "", 204
+
+
+# ---------------------------------------------------------------------------
+# Weekly schedule
+# ---------------------------------------------------------------------------
+
+@app.route("/schedule/weekly", methods=["POST"])
+def weekly_schedule():
+    # Called by the frontend on app startup.
+    # Checks if the user has entered a new week (new Sunday). If so, reassigns
+    # all active tasks to days based on the user's availability (round-robin).
+    # Returns: { new_week: bool, schedule: { curr_week_start, monday: [...], ... } }
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+    new_week, schedule = db.check_new_week(user_id)
+    return jsonify({"new_week": new_week, "schedule": schedule})
+
+
+@app.route("/daily_goal_digest", methods=["POST"])
+def daily_goal_digest():
+    # Called on startup after /schedule/weekly.
+    # Returns today's tasks for the user, each paired with its goal name.
+    # Response: { day: "monday", tasks: [{ task_id, task, goal_name, impetus, ... }] }
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
+        (date.today().weekday() + 1) % 7
+    ]
+    tasks = db.get_daily_tasks(user_id)
+    return jsonify({"day": today_name, "tasks": tasks})
 
 
 if __name__ == "__main__":
