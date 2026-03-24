@@ -8,12 +8,7 @@
 import SwiftUI
 
 struct EditGoalView: View {
-    @State private var goal = GoalItemBuilder()
-        .title("Go to the gym 3 times a week.")
-        .category("Fitness")
-        .due(Date(timeIntervalSinceNow: 10000))
-        .mon().wed().fri()
-        .build()
+    @State private var goal: GoalItem
     @State private var newEndDate = Date()
     @State private var showingDatePicker = false
     
@@ -23,7 +18,16 @@ struct EditGoalView: View {
     @State private var showingPausePopup = false
     @State private var showingDeletePopup = false
     
+    // Store some @State variable wherever you call an EditGoalView
+    // When you call init, set isShowingIn: $variable
     @Binding var isShowing: Bool
+    
+    init(goal goalIn: GoalItem, isShowing isShowingIn: Binding<Bool>){
+        // This is a copy because GoalItem is a struct, not a class
+        goal = goalIn
+        // Add a leading _ to
+        _isShowing = isShowingIn
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -191,11 +195,6 @@ struct EditGoalView: View {
         .background(.white)
         .frame(maxHeight: 570)
         .cornerRadius(15)
-        // TODO: Remove this hack
-        .task {
-            await ApiCall.shared.refreshGoals()
-            goal = ApiCall.shared.goals.last ?? goal
-        }
         
         // Confirmation popups are overlayed if their respective variables are on
         .overlay{
@@ -290,6 +289,7 @@ private struct PurpleButtonStyle: ButtonStyle {
 #Preview {
     @Previewable @State var showingEditPopup = false
     
+    
     VStack(spacing: 0) {
         Button("Edit Goal"){
             showingEditPopup = true
@@ -298,9 +298,21 @@ private struct PurpleButtonStyle: ButtonStyle {
     }
     .frame(width: 999, height: 999)
     .background(.gray)
+    .task {
+        await ApiCall.shared.refreshGoals()
+        // goal = ApiCall.shared.goals.last ?? goal
+    }
     .overlay{
         if showingEditPopup {
-            EditGoalView(isShowing: $showingEditPopup)
+            let goal = GoalItemBuilder()
+                .title("Go to the gym 3 times a week.")
+                .category("Fitness")
+                .due(Date(timeIntervalSinceNow: 10000))
+                .mon().wed().fri()
+                .id(4)
+                .build()
+            EditGoalView(goal: ApiCall.shared.goals.last ?? goal,
+                isShowing: $showingEditPopup)
         }
     }
     }
