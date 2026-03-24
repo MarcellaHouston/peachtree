@@ -20,6 +20,7 @@ final class ApiCall {
     private(set) var goals = [GoalItem]()
     private(set) var tasks = [TaskItem]()
     
+    // Syncs local goals variable to database info
     func refreshGoals() async {
         // Wrapper struct because result is an object, not an array
         struct Res: Codable {
@@ -34,6 +35,7 @@ final class ApiCall {
         }
     }
     
+    // Syncs local tasks variable to database info
     func refreshTasks() async {
         struct Res: Codable {
             let tasks: [TaskSchema]
@@ -45,6 +47,56 @@ final class ApiCall {
         } catch {
             print(error)
         }
+    }
+    
+    struct Empty: Codable {}
+    // Informs backend of change and refreshes goals
+    func updateGoal(goal: GoalItem) async {
+        
+    }
+    func createGoal(goal: GoalItem) async {
+        var body: [String: Any] = [
+            "goal": [
+                "name": goal.title,
+                // No description on frontend
+                "measurable": "completion",// No measurable on frontend
+                // No start_date on frontend
+                "end_date": "2999-01-01",// end_date optional on frontend
+                "user": "Reach staff"// TODO: Unhardcode the user
+                
+                // No difficulty on backend
+                // No category (optional) on backend
+                // No isPaused on backend
+                // No repeat days on backend
+            ]
+        ]
+        
+        // If we have an assigned due date, convert to string and send
+        if let due = goal.due{
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            body["end_date"] = formatter.string(from: due)
+        }
+        
+        do {
+            let a: Empty = try await sendRequest("POST", body, "goals/create")
+        } catch {
+            print(error)
+        }
+    }
+    func deleteGoal(goal: GoalItem) async {
+        
+    }
+    
+    // Informs backend of change and refreshes tasks
+    func updateTask(task: TaskItem) async {
+        
+    }
+    func createTask(task: TaskItem) async {
+        
+    }
+    func deleteTask(task: TaskItem) async {
+        
     }
     
     // Abstracted function to send a request and return some Decodable struct as response

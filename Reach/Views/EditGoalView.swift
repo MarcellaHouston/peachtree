@@ -191,8 +191,9 @@ struct EditGoalView: View {
         .frame(maxHeight: 570)
         .cornerRadius(15)
         .task {
+            await ApiCall.shared.createGoal(goal: goal)
             await ApiCall.shared.refreshGoals()
-            goal = ApiCall.shared.goals[1]
+            goal = ApiCall.shared.goals.last ?? goal
             print(ApiCall.shared.goals)
         }
         
