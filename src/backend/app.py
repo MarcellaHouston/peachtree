@@ -40,6 +40,9 @@ def validate_goal(goal):
     if not goal.get("user"):
         errors.append("user is required")
 
+    if not goal.get("difficulty"):
+        errors.append("difficulty is required")
+
     return errors
 
 
@@ -51,6 +54,7 @@ def validate_goal(goal):
 def get_goals():
     # Return all goals that overlap the requested date range.
     # If no dates are provided, defaults to goals active in the past 7 days.
+    # If user_id is provided, also runs the weekly schedule check.
     data = request.get_json(silent=True) or {}
 
     start_date = parse_date(data.get("start_date"))
@@ -63,6 +67,7 @@ def get_goals():
     rows = db.select("goals", "all")
     results = []
     for row in rows:
+        active_date = row[7]
         goal = {
             "id": row[0],
             "name": row[1],
@@ -71,7 +76,11 @@ def get_goals():
             "start_date": row[4],
             "end_date": row[5],
             "user": row[6],
-            "active_date": row[7],
+            "active_date": active_date,
+            "difficulty": row[8],
+            "category": row[9],
+            "days_of_week": row[10],
+            "isPaused": parse_date(active_date) > date.today(),
         }
 
         g_start = parse_date(goal.get("start_date"))
@@ -85,7 +94,15 @@ def get_goals():
 
         results.append(goal)
 
-    return jsonify({"goals": results})
+    response = {"goals": results}
+
+    user_id = data.get("user_id")
+    if user_id:
+        new_week, schedule = db.check_new_week(user_id)
+        response["new_week"] = new_week
+        response["schedule"] = schedule
+
+    return jsonify(response)
 
 
 @app.route("/goals/create", methods=["POST"])
@@ -120,6 +137,9 @@ def create_goal():
             goal["end_date"],
             goal["user"],
             goal["active_date"],
+            goal["difficulty"],
+            goal.get("category"),
+            goal.get("days_of_week"),
         ],
     )
 
@@ -173,16 +193,29 @@ def snooze_goal():
     return "", 204
 
 
+@app.route("/goals/delete", methods=["POST"])
+def delete_goal():
+    # Delete a goal by id. Associated tasks are removed automatically via cascade.
+    data = request.get_json(silent=True) or {}
+    goal_id = data.get("id")
+    if goal_id is None:
+        return jsonify({"error": "Missing 'id' in request body"}), 400
+    db.delete("goals", goal_id)
+    return "", 204
+
+
 # ---------------------------------------------------------------------------
 # Weekly schedule
 # ---------------------------------------------------------------------------
 
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
+    # not currently in use,1 get goals() call check_new_week
     # Called by the frontend on app startup.
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
     # all active tasks to days based on the user's availability (round-robin).
     # Returns: { new_week: bool, schedule: { curr_week_start, monday: [...], ... } }
+    
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     if not user_id:
