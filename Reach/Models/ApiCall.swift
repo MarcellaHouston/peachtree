@@ -37,6 +37,7 @@ final class ApiCall {
     
     // Syncs local tasks variable to database info
     func refreshTasks() async {
+        // TODO: This is a draft of estimated endpoint
         struct Res: Codable {
             let tasks: [TaskSchema]
         }
@@ -49,54 +50,85 @@ final class ApiCall {
         }
     }
     
-    struct Empty: Codable {}
+    // This class exists so we can properly JSONify an empty return result
+    private struct Empty: Codable {}
+    
     // Informs backend of change and refreshes goals
     func updateGoal(goal: GoalItem) async {
-        
-    }
-    func createGoal(goal: GoalItem) async {
-        var body: [String: Any] = [
-            "goal": [
-                "name": goal.title,
-                // No description on frontend
-                "measurable": "completion",// No measurable on frontend
-                // No start_date on frontend
-                "end_date": "2999-01-01",// end_date optional on frontend
-                "user": "Reach staff"// TODO: Unhardcode the user
-                
-                // No difficulty on backend
-                // No category (optional) on backend
-                // No isPaused on backend
-                // No repeat days on backend
-            ]
-        ]
-        
-        // If we have an assigned due date, convert to string and send
-        if let due = goal.due{
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            body["end_date"] = formatter.string(from: due)
+        if goal.id == -1 {
+            print("Modifying goal should not have dummy id")
+            return
         }
+        let body: [String: Any] = goal.requestBody()
         
         do {
-            let a: Empty = try await sendRequest("POST", body, "goals/create")
+            let _: Empty = try await sendRequest("POST", body, "goals/update")
         } catch {
             print(error)
         }
+        await refreshGoals()
+    }
+    func createGoal(goal: GoalItem) async {
+        let body: [String: Any] = goal.requestBody()
+        // TODO: Don't let user create a goal with an ID
+        
+        do {
+            let _: Empty = try await sendRequest("POST", body, "goals/create")
+        } catch {
+            print(error)
+        }
+        await refreshGoals()
     }
     func deleteGoal(goal: GoalItem) async {
+        // TODO: This is a draft of estimated endpoint
+        if goal.id == -1 {
+            print("Modifying goal should not have dummy id")
+            return
+        }
+        let body: [String:Any] = ["id": goal.id]
         
+        do {
+            let _: Empty = try await sendRequest("POST", body, "goals/delete")
+        } catch {
+            print(error)
+        }
+        await refreshGoals()
     }
     
     // Informs backend of change and refreshes tasks
     func updateTask(task: TaskItem) async {
+        // TODO: This is a draft of estimated endpoint
+        // TODO: Make sure created tasks on frontend only get their id from backend
+        let body: [String:Any] = task.requestBody()
         
+        do {
+            let _: Empty = try await sendRequest("POST", body, "tasks/update")
+        } catch {
+            print(error)
+        }
+        await refreshTasks()
     }
     func createTask(task: TaskItem) async {
+        // TODO: This is a draft of estimated endpoint
+        let body: [String:Any] = task.requestBody()
         
+        do {
+            let _: Empty = try await sendRequest("POST", body, "tasks/create")
+        } catch {
+            print(error)
+        }
+        await refreshTasks()
     }
     func deleteTask(task: TaskItem) async {
+        // TODO: This is a draft of estimated endpoint
+        let body: [String:Any] = ["id": task.id]
         
+        do {
+            let _: Empty = try await sendRequest("POST", body, "tasks/delete")
+        } catch {
+            print(error)
+        }
+        await refreshTasks()
     }
     
     // Abstracted function to send a request and return some Decodable struct as response
@@ -123,6 +155,7 @@ final class ApiCall {
         }
 
         //print(String(data: data, encoding: .utf8)!)
+        // TODO: Fix inconsequential bug of trying to decode an Empty data
         let decodedData = try JSONDecoder().decode(T.self, from: data)
         return decodedData
     }

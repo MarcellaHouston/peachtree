@@ -14,4 +14,23 @@ struct TaskItem: Identifiable {
     let id = UUID()
     let title: String
     var isCompleted: Bool
+    
+    func requestBody() -> [String:Any] {
+        let body: [String:[String:Any]] = [
+            "task": [
+                "name": title,
+                "id": id,
+                // No description in frontend
+                "measurable": "completion",// No measurable in frontend
+                // No start date in frontend
+                "end_date": "2999-01-01",// No end date in frontend
+                "user": "Reach staff"// TODO: Unhardcode the user
+                
+                // No isCompleted in backend
+            ]
+        ]
+        
+        return body
+    }
 }
+

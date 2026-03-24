@@ -172,7 +172,6 @@ struct EditGoalView: View {
             HStack {
                 Button("Delete") {
                     showingDeletePopup = true
-                    // TODO: Inform the backend
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Cancel") {
@@ -181,7 +180,9 @@ struct EditGoalView: View {
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
                     isShowing = false
-                    // TODO: Inform the backend
+                    Task {
+                        await ApiCall.shared.updateGoal(goal: goal)
+                    }
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
@@ -190,18 +191,20 @@ struct EditGoalView: View {
         .background(.white)
         .frame(maxHeight: 570)
         .cornerRadius(15)
+        // TODO: Remove this hack
         .task {
-            await ApiCall.shared.createGoal(goal: goal)
             await ApiCall.shared.refreshGoals()
             goal = ApiCall.shared.goals.last ?? goal
-            print(ApiCall.shared.goals)
         }
         
         // Confirmation popups are overlayed if their respective variables are on
         .overlay{
             if showingDeletePopup{
                 ConfirmPopup(isShown: $showingDeletePopup, prompt: "Are you sure you want to delete this goal?", desc: "If you need to take a break, you can pause this goal instead. You can also use the AI Goal Guidance feature to help make the goal more manageable.", confirm: "Delete", effect: {
-                    // TODO: Delete the goal
+                    // TODO: Ensure this works when backend fixes it
+                    Task {
+                        await ApiCall.shared.deleteGoal(goal: goal)
+                    }
                     isShowing = false
                 }
                 )
@@ -209,7 +212,10 @@ struct EditGoalView: View {
                 ConfirmPopup(isShown: $showingPausePopup, prompt: "Need a break?", desc: "No worries—jump back in whenever you're ready. Want to keep going? Try AI Goal Guidance to make your goal more manageable.", confirm: "Pause Goal", effect: {
                     goal.isPaused = true
                     isShowing = false
-                    // TODO: Pause the goal
+                    // TODO: Make sure this works when backend implements pausing
+                    Task {
+                        await ApiCall.shared.updateGoal(goal: goal)
+                    }
                 }
                 )
             }

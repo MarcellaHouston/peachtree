@@ -22,7 +22,7 @@ struct GoalSchema : Codable{
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
 
-        var res = GoalItemBuilder().title(name)
+        let res = GoalItemBuilder().title(name).id(id)
         if let date = formatter.date(from: end_date) {
             return res.due(date).build()
         }
