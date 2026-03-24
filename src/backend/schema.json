@@ -1,0 +1,31 @@
+{
+  "goals": {
+    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "TEXT NOT NULL",
+    "description": "TEXT",
+    "measurable": "TEXT NOT NULL CHECK(measurable IN ('completion', 'scalar', 'count', 'range'))",
+    "start_date": "TEXT DEFAULT CURRENT_DATE",
+    "end_date": "TEXT NOT NULL",
+    "user_id": "TEXT NOT NULL",
+    "active_date": "TEXT NOT NULL DEFAULT CURRENT_DATE"
+  },
+  "tasks": {
+    "task_id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "goal_id": "INTEGER NOT NULL",
+    "task": "TEXT NOT NULL",
+    "weekly_frequency": "INTEGER NOT  NULL",
+    "weight": "INTEGER NOT NULL",
+    "days_of_week": "TEXT",
+    "start_date": "TEXT NOT NULL",
+    "end_date": "TEXT NOT NULL",
+    "impetus": "INTEGER NOT NULL CHECK(impetus BETWEEN 1 AND 5)",
+    "FOREIGN KEY (goal_id)": "REFERENCES goals(id) ON DELETE CASCADE"
+  },
+  "users": {
+    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "username": "TEXT NOT NULL UNIQUE",
+    "password": "TEXT NOT NULL",
+    "week_schedule": "TEXT CHECK(json_valid(week_schedule))",
+    "week_availability": "TEXT CHECK(json_valid(week_availability))"
+  }
+}

@@ -217,3 +217,4 @@ __marimo__/
 
 # Apple puts a .DS_Store in every directory
 .DS_Store
+env*

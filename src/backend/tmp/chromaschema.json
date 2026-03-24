@@ -1,0 +1,32 @@
+[
+    {
+        "id": "UUID",
+        "document": "summary from llm of a talking point",
+        "metadata": {
+            "end_timestamp": "xx",
+            "verbose_summary": "Accurate retelling of the talking point, without verbal interruptions like the full transcript will have. For example, 'User wants to start meditating every day and heard that headspace is a good way to..",
+            "static_trait": "True/False",
+            "user_id": "user_id"
+        }
+    },
+    {
+        "id": "UUID",
+        "document": "summary from llm of a talking point",
+        "metadata": {
+            "end_timestamp": "xx",
+            "verbose_summary": "Accurate retelling of the talking point, without verbal interruptions like the full transcript will have. For example, 'User wants to start meditating every day and heard that headspace is a good way to..",
+            "static_trait": "True/False",
+            "user_id": "user_id"
+        }
+    },
+    {
+        "id": "UUID",
+        "document": "summary from llm of a talking point",
+        "metadata": {
+            "end_timestamp": "xx",
+            "verbose_summary": "Accurate retelling of the talking point, without verbal interruptions like the full transcript will have. For example, 'User wants to start meditating every day and heard that headspace is a good way to..",
+            "static_trait": "True/False",
+            "user_id": "user_id"
+        }
+    }
+]
