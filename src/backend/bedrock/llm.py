@@ -92,20 +92,20 @@ class _LLM:
 
     def rag_retrieval(self, query: str, userid: str) -> None:
         # Get relevant docs related to query from chromadb
-        results = chroma.query(
+        results, nonstatic = chroma.query(
             query_text=query, check_end_timestamp=True, user_id=userid, n_results=25
         )
 
-        summaries = [struct["verbose_summary"] for struct in results["metadatas"][0]]
-        self.add_to_context("Past User Context")
-        self.add_to_context("\n".join(summaries))
+        metadata = results["metadatas"]
 
-        details = chroma.get_static_traits(user_id=userid)
-        detail_summaries = [
-            struct["verbose_summary"] for struct in details["metadatas"][0]
-        ]
+        nonstatic_summaries = metadata[:nonstatic]
+        static_summaries = metadata[nonstatic:]
+
+        self.add_to_context("Current User Context")
+        self.add_to_context("\n".join(nonstatic_summaries))
+
         self.add_to_context("User Details")
-        self.add_to_context("\n".join(detail_summaries))
+        self.add_to_context("\n".join(static_summaries))
 
 
 class LLMClient:
