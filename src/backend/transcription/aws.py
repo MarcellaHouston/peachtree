@@ -104,7 +104,6 @@ def transcription_service(filename: str, clean_up=False) -> str:
     else:
         # If transcription failed, throw an error
         raise TranscriptionFailure("Transcription failed.")
-        return "Transcription failed."
 
     # if cleanup was passed in, cleanup by deleting job and audio file
     if clean_up:

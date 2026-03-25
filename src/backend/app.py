@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
-from bedrock.llm import LLM, LLMClient
+from bedrock.llm import _LLM, LLMClient
 import transcription.aws as aws
 import chromaDB.chroma_db as chroma
 import os
@@ -223,23 +223,27 @@ def eod_summary():
     '''Given a transcription from a user's STT, return a LLM-generated summary'''
     # Grab metadata from user
     userid = request.headers.get('User-ID')
-    audio_file = request.headers.get('File-Type', '.m4a')
+    file_type = request.headers.get('File-Type', '.m4a')
+    audio_file = request.data
 
     if not userid:
         return jsonify({"error": "Missing User-ID in header"}), 400
     
+    if not file_type:
+        return jsonify({"error": "Missing File Type in header"}), 400
+    
     if not audio_file:
-        return jsonify({"error": "Missing Audio File in headder"}), 400
+        return jsonify({"error": "Missing Audio File"}), 400
     
     # Create temporary audio filename and path for transcription
-    temp_filename = f"temp_{user_id}_{uuid.uuid4()}{audio_file}"
+    temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
     temp_path = os.path.join("/tmp", temp_filename)
 
     # Transcribe the audio file
     transcription = ""
     try:
         with open(temp_path, "wb") as f:
-            f.write(request.data)
+            f.write(audio_file)
 
         # Upload to s3 and then transcribe
         aws.upload_to_s3(temp_path)
@@ -248,14 +252,15 @@ def eod_summary():
         # Cleanup local file
         if os.path.exists(temp_path):
             os.remove(temp_path)
-    
+
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
         # Final cleanup if something goes wrong
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        return jsonify({"error": str(e)}), 500
     
-    if transcription == "" or not transcription:
+    if not transcription:
         return jsonify({"error": "Transcription failed"}), 400
 
     # Setup LLM with eod_summary instructions
@@ -263,7 +268,7 @@ def eod_summary():
                        " of the day summary. You will be given a transcription" \
                        " and the daily tasks of a user. Use both of these to" \
                        " give a summary of the user's day."
-    llm_model = LLM(model_strength=1, instructions=eod_instructions)
+    llm_model = _LLM(model_strength=1, instructions=eod_instructions)
 
     # Get user's daily tasks
     tasks = db.get_daily_tasks(userid)
@@ -274,8 +279,8 @@ def eod_summary():
     llm_model.add_to_context(formatted_tasks)
     
     # Query the LLM with the transcription, which returns the summary
-    summary = llm_model.query(content=finished, rag=True)
-    return jsonify({"summary": summary, "transcription": finished})
+    summary = llm_model.query(content=transcription, user_id=userid rag=True)
+    return jsonify({"summary": summary, "transcription": transcription})
 
 
 # Save convo to chromadb
@@ -283,23 +288,32 @@ def eod_summary():
 def save_convo():
     data = request.get_json()
     userid = data.get("user_id")
-    summary = data.get("summary")
     transcription = data.get("transcription")
 
-    if not userid or not summary or not transcription:
+    if not userid or not transcription:
         return jsonify({"error": "Missing information"})
     
     # Initialize LLMClient
     llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
 
     # Query the LLM to get the entries for our conversation
-    convo_args, _ = llm_client.query(transcription)
+    convo_args, valid, _ = llm_client.query(transcription)
 
-    _ = chroma.store_talking_point()
+    if not valid:
+        return jsonify({"error": "LLM was unable to get valid entries"})
 
+    # Store convo in chromadb with what the LLM returned
+    json_convo_args = loads(convo_args)
+    for arg in json_convo_args:
+        _ = chroma.store_talking_point(
+            user_id=userid,
+            document=arg.get("document"),
+            verbose_summary=arg.get("verbose_summary"),
+            static_trait=bool(arg.get("static_trait")),
+            end_timestamp=int(arg.get("end_timestamp"))
+        )
 
-
-
+    return "", 200
 
 
 if __name__ == "__main__":

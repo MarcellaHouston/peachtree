@@ -102,7 +102,7 @@ class _LLM:
 
         details = chroma.get_static_traits(user_id=userid)
         detail_summaries = [
-            struct["verbose_summary"] for struct in results["metadatas"][0]
+            struct["verbose_summary"] for struct in details["metadatas"][0]
         ]
         self.add_to_context("User Details")
         self.add_to_context("\n".join(detail_summaries))
@@ -122,7 +122,7 @@ class LLMClient:
     ):
         self.use_case = use_case
         self.user_id = user_id
-        prompts = Path(__file__).parent / prompts
+        prompts = Path(__file__).parent / "prompts"
         if use_case == self.UseCase.GENERATE_TASKS:
             file_path = prompts / "generate_tasks.txt"
             self.rag = True
