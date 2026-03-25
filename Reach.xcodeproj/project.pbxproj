@@ -29,9 +29,22 @@
 		39D6E4972F4E6D14005970A4 /* ReachUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReachUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C88711B72F71DBB600E3376F /* Exceptions for "Reach" folder in "Reach" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 39D6E47C2F4E6D12005970A4 /* Reach */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		39D6E47F2F4E6D12005970A4 /* Reach */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C88711B72F71DBB600E3376F /* Exceptions for "Reach" folder in "Reach" target */,
+			);
 			path = Reach;
 			sourceTree = "<group>";
 		};
@@ -380,6 +393,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Reach/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Reach/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -408,6 +422,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Reach/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Reach/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

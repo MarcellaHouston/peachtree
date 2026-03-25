@@ -67,6 +67,7 @@ class IntegrationTestCase(unittest.TestCase):
                 "measurable": "completion",
                 "end_date": "2027-12-31",
                 "user": "alice",
+                "difficulty": "medium",
                 **overrides,
             }
         }
@@ -205,8 +206,40 @@ class TestGetGoalsIntegration(IntegrationTestCase):
             "end_date",
             "user",
             "active_date",
+            "difficulty",
+            "category",
+            "days_of_week",
+            "isPaused",
         ):
             self.assertIn(key, g)
+
+    def test_get_goals_with_user_id_includes_schedule(self):
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            ("alice", "pw", json.dumps({"monday": 3}))
+        )
+        self.real_db._commit()
+        body = self.post_json("/goals", {"user_id": "alice"}).get_json()
+        self.assertIn("new_week", body)
+        self.assertIn("schedule", body)
+        self.assertIn("goals", body)
+
+    def test_get_goals_without_user_id_omits_schedule(self):
+        body = self.post_json("/goals", {}).get_json()
+        self.assertNotIn("new_week", body)
+        self.assertNotIn("schedule", body)
+
+    def test_is_paused_false_for_active_goal(self):
+        self.create_goal(start_date=date.today().isoformat())
+        body = self.post_json("/goals", {"start_date": date.today().isoformat(), "end_date": "2027-12-31"}).get_json()
+        self.assertFalse(body["goals"][0]["isPaused"])
+
+    def test_is_paused_true_after_snooze(self):
+        self.create_goal(start_date=date.today().isoformat(), end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 4})
+        body = self.post_json("/goals", {"start_date": date.today().isoformat(), "end_date": "2027-12-31"}).get_json()
+        self.assertTrue(body["goals"][0]["isPaused"])
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +266,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "measurable": "completion",
                     "end_date": "2027-12-31",
                     "user": "alice",
+                    "difficulty": "medium",
                 }
             },
         )
@@ -250,6 +284,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "measurable": "scalar",
                     "end_date": "2027-06-01",
                     "user": "alice",
+                    "difficulty": "medium",
                 }
             },
         )
@@ -271,6 +306,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "measurable": "completion",
                     "end_date": "2027-12-31",
                     "user": "alice",
+                    "difficulty": "medium",
                 }
             },
         )
@@ -295,6 +331,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "measurable": "count",
                     "end_date": "2027-01-01",
                     "user": "nobody",
+                    "difficulty": "low",
                 }
             },
         )
@@ -341,7 +378,7 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
 
 class TestWeeklySchedule(IntegrationTestCase):
     def _insert_user(self, username, week_availability=None):
-        avail = json.dumps(week_availability or {"Mon": 3, "Wed": 2, "Fri": 4})
+        avail = json.dumps(week_availability or {"monday": 3, "wednesday": 2, "friday": 4})
         self.real_db._run_param(
             "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
             (username, "pw", avail)
@@ -421,7 +458,7 @@ class TestDailyGoalDigest(IntegrationTestCase):
         ]
         self.real_db._run_param(
             "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            (username, "pw", json.dumps({"Mon": 3, "Wed": 2, "Fri": 4}))
+            (username, "pw", json.dumps({"monday": 3, "wednesday": 2, "friday": 4}))
         )
         self.real_db._commit()
 
@@ -490,6 +527,46 @@ class TestDailyGoalDigest(IntegrationTestCase):
     def test_missing_user_id_returns_400(self):
         resp = self.post_json("/daily_goal_digest", {})
         self.assertEqual(resp.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# POST /goals/delete  (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteGoalIntegration(IntegrationTestCase):
+    def _inserted_id(self):
+        self.create_goal()
+        rows = self.real_db.select("goals", "all")
+        return rows[0][0]
+
+    def test_delete_removes_goal(self):
+        goal_id = self._inserted_id()
+        resp = self.post_json("/goals/delete", {"id": goal_id})
+        self.assertEqual(resp.status_code, 204)
+        rows = self.real_db.select("goals", "all")
+        self.assertEqual(len(rows), 0)
+
+    def test_delete_cascades_to_tasks(self):
+        goal_id = self._inserted_id()
+        self.real_db._run_param(
+            """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
+               start_date, end_date, impetus) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Do the thing", 2, 1, date.today().isoformat(), "2027-12-31", 3)
+        )
+        self.real_db._commit()
+        self.assertEqual(len(self.real_db._run("SELECT * FROM tasks").fetchall()), 1)
+
+        self.post_json("/goals/delete", {"id": goal_id})
+        self.assertEqual(len(self.real_db._run("SELECT * FROM tasks").fetchall()), 0)
+
+    def test_delete_missing_id_returns_400(self):
+        resp = self.post_json("/goals/delete", {})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_delete_nonexistent_id_returns_204(self):
+        resp = self.post_json("/goals/delete", {"id": 9999})
+        self.assertEqual(resp.status_code, 204)
 
 
 if __name__ == "__main__":
