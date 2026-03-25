@@ -38,7 +38,7 @@ def validate_goal(goal):
         errors.append("end_date is required")
 
     if not goal.get("user_id"):
-        errors.append("user is required")
+        errors.append("user_id is required")
 
     if not goal.get("difficulty"):
         errors.append("difficulty is required")

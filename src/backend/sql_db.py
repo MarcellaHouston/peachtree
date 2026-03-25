@@ -69,21 +69,44 @@ class Database:
         return True
 
     def snooze(self, goal_id: int, weeks: int) -> bool:
-        # Push a goal's active_date forward by N weeks, then snap back to the
-        # nearest past Sunday. This defers the goal without changing its
-        # start_date or end_date.
-        # Example: snooze 1 week from Thu Jan 1 → Thu Jan 8 → back to Sun Jan 4
+        # Push a goal's active_date forward by N weeks from today, then snap back
+        # to the nearest past Sunday. Also removes the goal's tasks from the
+        # user's current week_schedule so they no longer appear on the calendar.
         from datetime import date, timedelta
-        cursor = self._run_param("SELECT active_date FROM goals WHERE id = ?", (goal_id,))
-        row = cursor.fetchone()
+        row = self._run_param("SELECT user_id FROM goals WHERE id = ?", (goal_id,)).fetchone()
         if row is None:
             return False
-        active_date = date.fromisoformat(row[0])
-        shifted = active_date + timedelta(weeks=weeks)
+        user_id = row[0]
+
+        # Shift from TODAY (not stale active_date), snap to nearest past Sunday
         # weekday() returns 0=Mon ... 6=Sun, so (weekday+1)%7 gives days since last Sunday
+        shifted = date.today() + timedelta(weeks=weeks)
         days_since_sunday = (shifted.weekday() + 1) % 7
         new_active_date = (shifted - timedelta(days=days_since_sunday)).isoformat()
-        return self.update("goals", goal_id, {"active_date": new_active_date})
+        self.update("goals", goal_id, {"active_date": new_active_date})
+
+        # Remove this goal's tasks from the user's current week_schedule
+        task_ids = {
+            r[0] for r in self._run_param(
+                "SELECT task_id FROM tasks WHERE goal_id = ?", (goal_id,)
+            ).fetchall()
+        }
+        if task_ids:
+            sched_row = self._run_param(
+                "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+            ).fetchone()
+            if sched_row and sched_row[0]:
+                schedule = json.loads(sched_row[0])
+                for day in _ALL_DAYS:
+                    if day in schedule:
+                        schedule[day] = [t for t in schedule[day] if t not in task_ids]
+                self._run_param(
+                    "UPDATE users SET week_schedule = ? WHERE username = ?",
+                    (json.dumps(schedule), user_id)
+                )
+                self._commit()
+
+        return True
 
     def assign_weekly_tasks(self, user_id: str, this_sunday: str) -> dict:
         # Distribute the user's active tasks across their available days for the week.
