@@ -16,6 +16,32 @@ struct GoalItem {
         var thu: Bool = false
         var fri: Bool = false
         var sat: Bool = false
+        
+        func toString() -> String {
+            var res: [String] = []
+            if sun {
+                res.append("sunday")
+            }
+            if mon {
+                res.append("monday")
+            }
+            if tue {
+                res.append("tuesday")
+            }
+            if wed {
+                res.append("wednesday")
+            }
+            if thu {
+                res.append("thursday")
+            }
+            if fri {
+                res.append("friday")
+            }
+            if sat {
+                res.append("saturday")
+            }
+            return res.joined(separator: ".")
+        }
     }
     enum Difficulty {
         case easy
@@ -36,20 +62,25 @@ struct GoalItem {
         var body: [String:[String:Any]] = [
             "goal": [
                 "name": title,
-                // No description on frontend
-                "measurable": "completion",// No measurable on frontend
-                // No start_date on frontend
-                "end_date": "2999-01-01",// end_date optional on frontend
-                "user": "Reach staff"// TODO: Unhardcode the user
-                
-                // No difficulty on backend
-                // No category (optional) on backend
-                // No isPaused on backend
-                // No repeat days on backend
+                "measurable": "completion",
+                "end_date": "2999-01-01",
+                "category": "EMPTY_CATEGORY",
+                "user_id": "Reach staff",// TODO: Unhardcode the user
+                "difficulty": "easy",
+                "days_of_week": repeatDays.toString()
             ]
         ]
         
-        if id != -1 {
+        if difficulty == .average {
+            body["goal"]!["difficulty"] = "average"
+        } else if difficulty == .hard {
+            body["goal"]!["difficulty"] = "hard"
+        }
+        if let cat = category {
+            body["goal"]!["category"] = cat
+        }
+        
+        if id >= 0 {
             body["goal"]!["id"] = id
         }
         
