@@ -52,6 +52,7 @@ def hello():
 # Goals
 # ---------------------------------------------------------------------------
 
+
 @app.route("/goals", methods=["POST"])
 def get_goals():
     # Return all goals that overlap the requested date range.
@@ -77,7 +78,7 @@ def get_goals():
             "measurable": row[3],
             "start_date": row[4],
             "end_date": row[5],
-            "user": row[6],
+            "user_id": row[6],
             "active_date": active_date,
             "difficulty": row[8],
             "category": row[9],
@@ -210,6 +211,7 @@ def delete_goal():
 # Weekly schedule
 # ---------------------------------------------------------------------------
 
+
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
     # not currently in use,1 get goals() call check_new_week
@@ -217,7 +219,7 @@ def weekly_schedule():
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
     # all active tasks to days based on the user's availability (round-robin).
     # Returns: { new_week: bool, schedule: { curr_week_start, monday: [...], ... } }
-    
+
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     if not user_id:
@@ -236,9 +238,15 @@ def daily_goal_digest():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-        (date.today().weekday() + 1) % 7
-    ]
+    today_name = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][(date.today().weekday() + 1) % 7]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
 

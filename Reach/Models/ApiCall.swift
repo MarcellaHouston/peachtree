@@ -19,6 +19,8 @@ final class ApiCall {
     
     private(set) var goals = [GoalItem]()
     private(set) var tasks = [TaskItem]()
+    //Added
+    private(set) var taskGoalNames: [Int:String] = [:]
     
     // Syncs local goals variable to database info
     func refreshGoals() async {
@@ -36,6 +38,50 @@ final class ApiCall {
     }
     
     // Syncs local tasks variable to database info
+    func refreshTasks() async -> Bool{
+        struct DailyDigestTask: Codable {
+            let task_id: Int
+            let task: String
+            let goal_name: String
+        }
+        
+        struct Res: Codable {
+            let day: String
+            let tasks: [DailyDigestTask]
+        }
+        
+        let body: [String: Any] = [
+            "user_id": "Reach Staff"
+        ]
+        
+        do {
+            //test backend
+            let res: Res = try await sendRequest("POST", body, "daily_goal_digest")
+            //test fallback
+            //let res: Res = try await sendRequest("POST", body, "daily_goal_digest_broke")
+            self.tasks = res.tasks.map {
+                TaskItem(id: $0.task_id, title: $0.task, isCompleted: false)
+            }
+            
+            self.taskGoalNames = [:]
+            for task in res.tasks {
+                self.taskGoalNames[task.task_id] = task.goal_name
+            }
+            //REMOVE ONLY FOR DEBUGGING
+            //print("=== TASKS FROM BACKEND ===")
+            //for task in self.tasks {
+             //   print("ID: \(task.id), TITLE: \(task.title)")
+           // }
+          //  print("==========================")
+            //REMOVE ONLY FOR DEBUGGING
+            return true
+        }catch {
+            print(error)
+            return false
+        }
+    }
+    // Syncs local tasks variable to database info
+    /*ORIGINAL
     func refreshTasks() async {
         // TODO: This is a draft of estimated endpoint
         struct Res: Codable {
@@ -49,6 +95,7 @@ final class ApiCall {
             print(error)
         }
     }
+    */
     
     // This class exists so we can properly JSONify an empty return result
     private struct Empty: Codable {}
