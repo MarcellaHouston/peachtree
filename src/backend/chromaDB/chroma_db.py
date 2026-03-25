@@ -109,7 +109,7 @@ def query(
         "documents": combined_docs,
         "metadatas": combined_metas,
         "distances": combined_distances,
-    }
+    }, len(ns_ids)
 
 
 def get_static_traits(
