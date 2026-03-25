@@ -203,7 +203,11 @@ class LLMClient:
                                 )
 
             if valid:
-                return response, retries
+                return response, True, retries
             retries += 1
 
-        return f"Error: Failed to get a valid response after {max_retries} attempts."
+        return (
+            f"Error: Failed to get a valid response after {max_retries} attempts.",
+            False,
+            retries,
+        )
