@@ -342,7 +342,7 @@ def save_convo():
     json_convo_args, valid, _ = llm_client.query(transcription)
 
     if not valid:
-        return jsonify({"error": "LLM was unable to get valid entries"})
+        return jsonify({"error": "LLM was unable to get valid entries"}), 400
 
     # Store convo in chromadb with what the LLM returned
     for arg in json_convo_args:
@@ -354,7 +354,7 @@ def save_convo():
             end_timestamp=int(arg.get("end_timestamp")),
         )
 
-    return "", 200
+    return "", 204
 
 
 if __name__ == "__main__":
