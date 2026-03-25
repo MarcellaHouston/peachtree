@@ -91,7 +91,7 @@ def transcription_service(filename: str, clean_up=False) -> str:
 
         if job_status in ['COMPLETED', 'FAILED']:
             break
-        time.sleep(5)
+        time.sleep(2)
 
     # Once completed, fetch and print the English transcript
     text = ""

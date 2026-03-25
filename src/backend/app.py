@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
-from bedrock.llm import LLM
+from bedrock.llm import LLM, LLMClient
 import transcription.aws as aws
 import chromaDB.chroma_db as chroma
+import os
+import uuid
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -218,18 +221,43 @@ def daily_goal_digest():
 @app.route('/stt/eod_summary', methods=["POST"])
 def eod_summary():
     '''Given a transcription from a user's STT, return a LLM-generated summary'''
-    # Get data NEEDS REDOING
-    data = request.get_json()
-    audio = data.get("audio") # Redo
-    userid = data.get("user_id")
+    # Grab metadata from user
+    userid = request.headers.get('User-ID')
+    audio_file = request.headers.get('File-Type', '.m4a')
 
-    if not audio or not userid:
-        return jsonify({"error": "Missing information"}), 400
+    if not userid:
+        return jsonify({"error": "Missing User-ID in header"}), 400
+    
+    if not audio_file:
+        return jsonify({"error": "Missing Audio File in headder"}), 400
+    
+    # Create temporary audio filename and path for transcription
+    temp_filename = f"temp_{user_id}_{uuid.uuid4()}{audio_file}"
+    temp_path = os.path.join("/tmp", temp_filename)
 
     # Transcribe the audio file
-    aws.upload_to_s3(audio)
-    finished = aws.transcription_service(audio, clean_up=True)
+    transcription = ""
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(request.data)
+
+        # Upload to s3 and then transcribe
+        aws.upload_to_s3(temp_path)
+        transcription = aws.transcription_service(temp_path, clean_up=True)
+
+        # Cleanup local file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
     
+    except Exception as e:
+        # Final cleanup if something goes wrong
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({"error": str(e)}), 500
+    
+    if transcription == "" or not transcription:
+        return jsonify({"error": "Transcription failed"}), 400
+
     # Setup LLM with eod_summary instructions
     eod_instructions = "You are a social accountability app giving an end" \
                        " of the day summary. You will be given a transcription" \
@@ -242,26 +270,34 @@ def eod_summary():
 
     # Add daily tasks to the LLM's context
     daily_tasks = [f"Task: {t['task']}, Overarching Goal: {t['goal_name']}." for t in tasks]
-    formatted_tasks = " ".join(daily_tasks)
+    formatted_tasks = "Daily Tasks\n" + " ".join(daily_tasks)
     llm_model.add_to_context(formatted_tasks)
     
     # Query the LLM with the transcription, which returns the summary
-    summary = llm_model.query(content=finished)
-    return jsonify(
-        {
-            "summary": summary,
-            "transcription": finished
-        }
-    )
+    summary = llm_model.query(content=finished, rag=True)
+    return jsonify({"summary": summary, "transcription": finished})
 
 
 # Save convo to chromadb
-@app.route('/save_convo', methods=["POST"])
+@app.route('/stt/save_convo', methods=["POST"])
 def save_convo():
     data = request.get_json()
     userid = data.get("user_id")
     summary = data.get("summary")
     transcription = data.get("transcription")
+
+    if not userid or not summary or not transcription:
+        return jsonify({"error": "Missing information"})
+    
+    # Initialize LLMClient
+    llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
+
+    # Query the LLM to get the entries for our conversation
+    convo_args, _ = llm_client.query(transcription)
+
+    _ = chroma.store_talking_point()
+
+
 
 
 
