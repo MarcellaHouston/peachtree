@@ -4,6 +4,8 @@ anyio==4.12.1
 attrs==25.4.0
 bcrypt==5.0.0
 blinker==1.9.0
+boto3==1.42.68
+botocore==1.42.68
 build==1.4.0
 certifi==2026.2.25
 charset-normalizer==3.4.5
@@ -25,8 +27,10 @@ huggingface_hub==1.6.0
 idna==3.11
 importlib_metadata==8.7.1
 importlib_resources==6.5.2
+iniconfig==2.3.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
+jmespath==1.1.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 kubernetes==35.0.0
@@ -47,6 +51,7 @@ opentelemetry-semantic-conventions==0.61b0
 orjson==3.11.7
 overrides==7.7.0
 packaging==26.0
+pluggy==1.6.0
 protobuf==6.33.5
 pybase64==1.4.3
 pydantic==2.12.5
@@ -55,6 +60,7 @@ pydantic_core==2.41.5
 Pygments==2.19.2
 PyPika==0.51.1
 pyproject_hooks==1.2.0
+pytest==9.0.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 PyYAML==6.0.3
@@ -63,6 +69,7 @@ requests==2.32.5
 requests-oauthlib==2.0.0
 rich==14.3.3
 rpds-py==0.30.0
+s3transfer==0.16.0
 shellingham==1.5.4
 six==1.17.0
 sympy==1.14.0
