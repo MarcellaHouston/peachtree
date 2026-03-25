@@ -2,6 +2,8 @@ import boto3
 import backend.chromaDB.chroma_db as chroma
 from enum import Enum
 from pathlib import Path
+from json import loads
+import time
 
 
 class _LLM:
@@ -106,7 +108,7 @@ class _LLM:
         self.add_to_context("\n".join(detail_summaries))
 
 
-class LLM_Client:
+class LLMClient:
     class UseCase(Enum):
         GENERATE_TASKS = 1
         GENERATE_TALKING_POINTS = 2
@@ -146,16 +148,62 @@ class LLM_Client:
         )
 
     def query(self, content: str, max_retries=3):
+        retries = 0
         for _ in range(max_retries):
-
+            valid = True
             response = self.model.query(
                 content=content, user_id=self.user_id, rag=self.rag, flush=False
             )
 
-            for key in self.schema:
-                if key not in response:
-                    print(f"Response missing key '{key}'. Retrying...")
-                    print(response)
-                    break
+            # validate response is in correct JSON format
+            try:
+                json_response = loads(response)
+            except Exception as e:
+                print(
+                    f"Failed to parse response as JSON: {str(e)}. Response was: {response}"
+                )
+                valid = False
+                self.model.previous_conversation.append(
+                    "Error: The previous response was not valid JSON. Please provide a new response that is valid JSON and adheres to the schema."
+                )
+                continue
 
-            return response
+            match self.use_case:
+                case self.UseCase.GENERATE_TASKS:
+                    pass
+                case self.UseCase.GENERATE_TALKING_POINTS:
+                    for json_obj in json_response:
+                        # validate keys
+                        missing_keys = []
+                        for key in self.schema:
+                            if key not in json_obj:
+                                print(f"Response missing key '{key}'.")
+                                missing_keys.append(key)
+                                valid = False
+
+                        if missing_keys:
+                            print(json_obj)
+                            self.model.previous_conversation.append(
+                                "Error: The previous response was invalid because it was missing the following keys: "
+                                + ", ".join(missing_keys)
+                                + ". Please provide a new response that includes these keys."
+                            )
+
+                        # validate timestamp
+                        end_timestamp = json_obj.get("end_timestamp")
+                        if end_timestamp is not None:
+                            end_timestamp = int(end_timestamp)
+                            if end_timestamp < int(time.time()):
+                                print(
+                                    f"Invalid end_timestamp: {end_timestamp} is in the past."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had an invalid end_timestamp that was in the past. Please provide a new response with a valid end_timestamp that is in the future."
+                                )
+
+            if valid:
+                return response, retries
+            retries += 1
+
+        return f"Error: Failed to get a valid response after {max_retries} attempts."
