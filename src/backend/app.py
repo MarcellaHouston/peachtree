@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
+from bedrock.llm import LLMClient
+import transcription.aws as aws
+import chromaDB.chroma_db as chroma
+import os
+import uuid
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -38,7 +44,7 @@ def validate_goal(goal):
         errors.append("end_date is required")
 
     if not goal.get("user_id"):
-        errors.append("user is required")
+        errors.append("user_id is required")
 
     if not goal.get("difficulty"):
         errors.append("difficulty is required")
@@ -249,6 +255,108 @@ def daily_goal_digest():
     ][(date.today().weekday() + 1) % 7]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
+
+
+# ---------------------------------------------------------------------------
+# End of day summary
+# ---------------------------------------------------------------------------
+
+
+@app.route("/stt/eod_summary", methods=["POST"])
+def eod_summary():
+    """Given a transcription from a user's STT, return a LLM-generated summary"""
+    # Grab metadata from user
+    userid = request.headers.get("User-ID")
+    file_type = request.headers.get("File-Type", ".m4a")
+    audio_file = request.data
+
+    if not userid:
+        return jsonify({"error": "Missing User-ID in header"}), 400
+
+    if not file_type:
+        return jsonify({"error": "Missing File Type in header"}), 400
+
+    if not audio_file:
+        return jsonify({"error": "Missing Audio File"}), 400
+
+    # Create temporary audio filename and path for transcription
+    temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
+    temp_path = os.path.join("/tmp", temp_filename)
+
+    # Transcribe the audio file
+    transcription = ""
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(audio_file)
+
+        # Upload to s3 and then transcribe
+        aws.upload_to_s3(temp_path)
+        transcription = aws.transcription_service(temp_path, clean_up=True)
+
+        # Cleanup local file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # Final cleanup if something goes wrong
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    if not transcription:
+        return jsonify({"error": "Transcription failed"}), 400
+
+    # Setup LLM with eod_summary instructions
+    llm_model = LLMClient(
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+    )
+
+    # Get user's daily tasks
+    tasks = db.get_daily_tasks(userid)
+
+    # Add daily tasks to the LLM's context
+    daily_tasks = [
+        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
+    ]
+    formatted_tasks = "Today's Tasks:\n" + " ".join(daily_tasks)
+    llm_model.context(formatted_tasks)
+
+    # Query the LLM with the transcription, which returns the summary
+    summary = llm_model.query(content=transcription)
+    return jsonify({"summary": summary, "transcription": transcription})
+
+
+# Save convo to chromadb
+@app.route("/stt/save_convo", methods=["POST"])
+def save_convo():
+    data = request.get_json()
+    userid = data.get("user_id")
+    transcription = data.get("transcription")
+
+    if not userid or not transcription:
+        return jsonify({"error": "Missing information"})
+
+    # Initialize LLMClient
+    llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
+
+    # Query the LLM to get the entries for our conversation
+    json_convo_args, valid, _ = llm_client.query(transcription)
+
+    if not valid:
+        return jsonify({"error": "LLM was unable to get valid entries"}), 400
+
+    # Store convo in chromadb with what the LLM returned
+    for arg in json_convo_args:
+        chroma.store_talking_point(
+            user_id=userid,
+            document=arg.get("document"),
+            verbose_summary=arg.get("verbose_summary"),
+            static_trait=bool(arg.get("static_trait")),
+            end_timestamp=int(arg.get("end_timestamp")),
+        )
+
+    return "", 204
 
 
 if __name__ == "__main__":

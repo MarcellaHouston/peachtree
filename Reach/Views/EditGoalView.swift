@@ -36,7 +36,7 @@ struct EditGoalView: View {
                 TextField("Enter Goal Title", text: $goal.title)
                 Button(goal.isPaused ? "Unpause" : "Pause") {
                     if goal.isPaused{
-                        goal.isPaused.toggle()
+                        // Nothing
                     } else {
                         showingPausePopup = true
                     }
@@ -213,7 +213,7 @@ struct EditGoalView: View {
                     isShowing = false
                     // TODO: Make sure this works when backend implements pausing
                     Task {
-                        await ApiCall.shared.updateGoal(goal: goal)
+                        await ApiCall.shared.snoozeGoal(goal: goal)
                     }
                 }
                 )
