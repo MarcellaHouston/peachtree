@@ -37,7 +37,7 @@ def validate_goal(goal):
     if not goal.get("end_date"):
         errors.append("end_date is required")
 
-    if not goal.get("user"):
+    if not goal.get("user_id"):
         errors.append("user is required")
 
     if not goal.get("difficulty"):
@@ -49,6 +49,7 @@ def validate_goal(goal):
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
+
 
 @app.route("/goals", methods=["POST"])
 def get_goals():
@@ -75,7 +76,7 @@ def get_goals():
             "measurable": row[3],
             "start_date": row[4],
             "end_date": row[5],
-            "user": row[6],
+            "user_id": row[6],
             "active_date": active_date,
             "difficulty": row[8],
             "category": row[9],
@@ -135,7 +136,7 @@ def create_goal():
             goal["measurable"],
             goal["start_date"],
             goal["end_date"],
-            goal["user"],
+            goal["user_id"],
             goal["active_date"],
             goal["difficulty"],
             goal.get("category"),
@@ -172,8 +173,8 @@ def update_goal():
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
     # The API uses "user" but the DB column is "user_id" — remap it here
-    if "user" in updates:
-        updates["user_id"] = updates.pop("user")
+    if "user_id" in updates:
+        updates["user_id"] = updates.pop("user_id")
 
     db.update("goals", goal_id, updates)
 
@@ -208,6 +209,7 @@ def delete_goal():
 # Weekly schedule
 # ---------------------------------------------------------------------------
 
+
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
     # not currently in use,1 get goals() call check_new_week
@@ -215,7 +217,7 @@ def weekly_schedule():
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
     # all active tasks to days based on the user's availability (round-robin).
     # Returns: { new_week: bool, schedule: { curr_week_start, monday: [...], ... } }
-    
+
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     if not user_id:
@@ -234,9 +236,15 @@ def daily_goal_digest():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-        (date.today().weekday() + 1) % 7
-    ]
+    today_name = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][(date.today().weekday() + 1) % 7]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
 
