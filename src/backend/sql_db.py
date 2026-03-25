@@ -2,12 +2,6 @@ import sqlite3 as sql
 import json
 import os
 
-# Maps 3-letter day abbreviations (used in week_availability) to full lowercase
-# day names (used as keys in week_schedule)
-_DAY_MAP = {
-    "Mon": "monday", "Tue": "tuesday", "Wed": "wednesday",
-    "Thu": "thursday", "Fri": "friday", "Sat": "saturday", "Sun": "sunday"
-}
 _ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,7 +29,10 @@ class Database:
         # the schema columns (excluding id, which is auto-assigned).
         assert table in self.schema
         placeholders = ", ".join(["?"] * len(args))
-        cols = ", ".join([k for k in self.schema[table].keys() if k != "id"])
+        cols = ", ".join([
+            k for k, v in self.schema[table].items()
+            if "PRIMARY KEY" not in v and not k.upper().startswith("FOREIGN KEY")
+        ])
         print(cols)
         self._run_param(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", args)
         self._commit()
@@ -97,14 +94,14 @@ class Database:
         from datetime import date
         today = date.today().isoformat()
 
-        # Load the user's availability — a dict of day abbrev → hours, e.g. {"Mon": 3, "Wed": 2}
+        # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
         row = self._run_param(
             "SELECT week_availability FROM users WHERE username = ?", (user_id,)
         ).fetchone()
         if not row or not row[0]:
             return {}
         avail = json.loads(row[0])
-        avail_days = [_DAY_MAP[k] for k in avail if k in _DAY_MAP]  # ordered available days
+        avail_days = [k for k in avail if k in _ALL_DAYS]  # ordered available days
         if not avail_days:
             return {}
 
