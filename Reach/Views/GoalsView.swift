@@ -11,11 +11,6 @@ import SwiftUI
 struct GoalsView: View {
     //binding to control which tab is currently selected in the app
     @Binding var selectedTab: AppTab
-    
-    //this stores the list of goals shown on the screen
-    //it starts with fallback data in case backend fails
-    @State private var goals: [GoalItem] = FallbackData.fallbackGoals
-    
     //this keeps track of which goal is currently selected when user taps one
     @State private var selectedGoal: GoalItem? = nil
     
@@ -56,7 +51,7 @@ struct GoalsView: View {
                     VStack(spacing: 22) {
                         //loops through each goal and creates a row
                         //when tapped, it opens the edit goal popup
-                        ForEach(goals, id: \.id) { goal in GoalRow(goal: goal) {
+                        ForEach(ApiCall.shared.goals, id: \.id) { goal in GoalRow(goal: goal) {
                                 selectedGoal = goal
                                 showEditGoal = true
                             }
@@ -116,12 +111,6 @@ struct GoalsView: View {
         //if backend is empty, fallback data is used instead
         .task {
             await ApiCall.shared.refreshGoals()
-
-            if !ApiCall.shared.goals.isEmpty {
-                goals = ApiCall.shared.goals
-            } else {
-                goals = FallbackData.fallbackGoals
-            }
         }
     }
 }
