@@ -76,7 +76,7 @@ class IntegrationTestCase(unittest.TestCase):
                 "name": "Run 5k",
                 "measurable": "completion",
                 "end_date": "2027-12-31",
-                "user": "alice",
+                "user_id": "alice",
                 "difficulty": "medium",
                 **overrides,
             }
@@ -104,7 +104,7 @@ class TestCreateGoalIntegration(IntegrationTestCase):
         # Row columns: (id, name, description, measurable, start_date, end_date, user)
         self.create_goal(
             name="Meditate",
-            user="bob",
+            user_id="bob",
             measurable="count",
             start_date="2026-01-01",
             end_date="2026-12-31",
@@ -214,7 +214,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
             "measurable",
             "start_date",
             "end_date",
-            "user",
+            "user_id",
             "active_date",
             "difficulty",
             "category",
@@ -275,7 +275,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Run 10k",
                     "measurable": "completion",
                     "end_date": "2027-12-31",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -293,7 +293,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Updated",
                     "measurable": "scalar",
                     "end_date": "2027-06-01",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -315,7 +315,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Goal One Modified",
                     "measurable": "completion",
                     "end_date": "2027-12-31",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -340,7 +340,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Ghost",
                     "measurable": "count",
                     "end_date": "2027-01-01",
-                    "user": "nobody",
+                    "user_id": "nobody",
                     "difficulty": "low",
                 }
             },
