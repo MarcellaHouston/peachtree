@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # Single shared database connection for all requests.
 # Set create=True only once to wipe and rebuild tables from schema.json.
-db = Database(create=False)
+db = Database(create=True)
 
 ALLOWED_MEASURABLE = {"completion", "scalar", "count", "range"}
 
@@ -42,7 +42,9 @@ def validate_goal(goal):
 
     return errors
 
-
+@app.route("/")
+def hello():
+    return "Hello"
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
