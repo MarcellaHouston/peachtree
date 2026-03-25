@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
-from bedrock.llm import _LLM, LLMClient
+from bedrock.llm import LLMClient
 import transcription.aws as aws
 import chromaDB.chroma_db as chroma
 import os
@@ -52,6 +52,7 @@ def validate_goal(goal):
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
+
 
 @app.route("/goals", methods=["POST"])
 def get_goals():
@@ -183,6 +184,7 @@ def snooze_goal():
 # Weekly schedule
 # ---------------------------------------------------------------------------
 
+
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
     # Called by the frontend on app startup.
@@ -207,9 +209,15 @@ def daily_goal_digest():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-        (date.today().weekday() + 1) % 7
-    ]
+    today_name = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][(date.today().weekday() + 1) % 7]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
 
@@ -218,23 +226,24 @@ def daily_goal_digest():
 # End of day summary
 # ---------------------------------------------------------------------------
 
-@app.route('/stt/eod_summary', methods=["POST"])
+
+@app.route("/stt/eod_summary", methods=["POST"])
 def eod_summary():
-    '''Given a transcription from a user's STT, return a LLM-generated summary'''
+    """Given a transcription from a user's STT, return a LLM-generated summary"""
     # Grab metadata from user
-    userid = request.headers.get('User-ID')
-    file_type = request.headers.get('File-Type', '.m4a')
+    userid = request.headers.get("User-ID")
+    file_type = request.headers.get("File-Type", ".m4a")
     audio_file = request.data
 
     if not userid:
         return jsonify({"error": "Missing User-ID in header"}), 400
-    
+
     if not file_type:
         return jsonify({"error": "Missing File Type in header"}), 400
-    
+
     if not audio_file:
         return jsonify({"error": "Missing Audio File"}), 400
-    
+
     # Create temporary audio filename and path for transcription
     temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
     temp_path = os.path.join("/tmp", temp_filename)
@@ -259,32 +268,32 @@ def eod_summary():
         # Final cleanup if something goes wrong
         if os.path.exists(temp_path):
             os.remove(temp_path)
-    
+
     if not transcription:
         return jsonify({"error": "Transcription failed"}), 400
 
     # Setup LLM with eod_summary instructions
-    eod_instructions = "You are a social accountability app giving an end" \
-                       " of the day summary. You will be given a transcription" \
-                       " and the daily tasks of a user. Use both of these to" \
-                       " give a summary of the user's day."
-    llm_model = _LLM(model_strength=1, instructions=eod_instructions)
+    llm_model = LLMClient(
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+    )
 
     # Get user's daily tasks
     tasks = db.get_daily_tasks(userid)
 
     # Add daily tasks to the LLM's context
-    daily_tasks = [f"Task: {t['task']}, Overarching Goal: {t['goal_name']}." for t in tasks]
-    formatted_tasks = "Daily Tasks\n" + " ".join(daily_tasks)
-    llm_model.add_to_context(formatted_tasks)
-    
+    daily_tasks = [
+        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}." for t in tasks
+    ]
+    formatted_tasks = "Today's Tasks:\n" + " ".join(daily_tasks)
+    llm_model.context(formatted_tasks)
+
     # Query the LLM with the transcription, which returns the summary
-    summary = llm_model.query(content=transcription, user_id=userid rag=True)
+    summary = llm_model.query(content=transcription)
     return jsonify({"summary": summary, "transcription": transcription})
 
 
 # Save convo to chromadb
-@app.route('/stt/save_convo', methods=["POST"])
+@app.route("/stt/save_convo", methods=["POST"])
 def save_convo():
     data = request.get_json()
     userid = data.get("user_id")
@@ -292,25 +301,24 @@ def save_convo():
 
     if not userid or not transcription:
         return jsonify({"error": "Missing information"})
-    
+
     # Initialize LLMClient
     llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
 
     # Query the LLM to get the entries for our conversation
-    convo_args, valid, _ = llm_client.query(transcription)
+    json_convo_args, valid, _ = llm_client.query(transcription)
 
     if not valid:
         return jsonify({"error": "LLM was unable to get valid entries"})
 
     # Store convo in chromadb with what the LLM returned
-    json_convo_args = loads(convo_args)
     for arg in json_convo_args:
-        _ = chroma.store_talking_point(
+        chroma.store_talking_point(
             user_id=userid,
             document=arg.get("document"),
             verbose_summary=arg.get("verbose_summary"),
             static_trait=bool(arg.get("static_trait")),
-            end_timestamp=int(arg.get("end_timestamp"))
+            end_timestamp=int(arg.get("end_timestamp")),
         )
 
     return "", 200

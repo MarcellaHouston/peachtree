@@ -112,6 +112,7 @@ class LLMClient:
     class UseCase(Enum):
         GENERATE_TASKS = 1
         GENERATE_TALKING_POINTS = 2
+        SUMMARIZE_TRANSCRIPTION = 3
 
     def __init__(
         self,
@@ -136,6 +137,11 @@ class LLMClient:
                 "static_trait",
                 "end_timestamp",
             ]
+        elif use_case == self.UseCase.SUMMARIZE_TRANSCRIPTION:
+            file_path = prompts / "summarize_transcription.txt"
+            self.rag = False
+            self.schema = []
+
         else:
             raise ValueError("Invalid use case for LLM Client.")
         with open(file_path, "r") as f:
@@ -147,6 +153,9 @@ class LLMClient:
             max_tokens=max_tokens,
         )
 
+    def context(self, content: str):
+        self.model.add_to_context(content)
+
     def query(self, content: str, max_retries=3):
         retries = 0
         for _ in range(max_retries):
@@ -156,22 +165,30 @@ class LLMClient:
             )
 
             # validate response is in correct JSON format
-            try:
-                json_response = loads(response)
-            except Exception as e:
-                print(
-                    f"Failed to parse response as JSON: {str(e)}. Response was: {response}"
-                )
-                valid = False
-                self.model.previous_conversation.append(
-                    "Error: The previous response was not valid JSON. Please provide a new response that is valid JSON and adheres to the schema."
-                )
-                continue
+            if self.use_case in [
+                self.UseCase.GENERATE_TASKS,
+                self.UseCase.GENERATE_TALKING_POINTS,
+            ]:
+                try:
+                    json_response = loads(response)
+                except Exception as e:
+                    print(
+                        f"Failed to parse response as JSON: {str(e)}. Response was: {response}"
+                    )
+                    valid = False
+                    self.model.previous_conversation.append(
+                        "Error: The previous response was not valid JSON. Please provide a new response that is valid JSON and adheres to the schema."
+                    )
+                    continue
 
             match self.use_case:
+                case self.UseCase.SUMMARIZE_TRANSCRIPTION:
+                    output = response
+
                 case self.UseCase.GENERATE_TASKS:
-                    pass
+                    output = json_response
                 case self.UseCase.GENERATE_TALKING_POINTS:
+                    output = json_response
                     for json_obj in json_response:
                         # validate keys
                         missing_keys = []
@@ -203,7 +220,7 @@ class LLMClient:
                                 )
 
             if valid:
-                return response, True, retries
+                return output, True, retries
             retries += 1
 
         return (
