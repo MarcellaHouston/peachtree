@@ -6,12 +6,11 @@ USER_ID = "user_abc123"
 # so they always pass the end_timestamp filter.
 NEVER_EXPIRES = 253402300799
 
-# Reference timestamps (all in the past relative to 2026-03-13)
-# Used to create a mix of expired and still-valid talking points.
-JAN_2025 = 1735689600   # Jan 1 2025 — expired
-APR_2026 = 1743465600   # Apr 1 2026 — still valid
-JUN_2026 = 1748736000   # Jun 1 2026 — still valid
-DEC_2024 = 1733011200   # Dec 1 2024 — expired
+# Reference timestamps used to create a mix of expired and still-valid talking points.
+JAN_2025 = 1735707600   # Jan 1 2025 — expired
+DEC_2024 = 1733029200   # Dec 1 2024 — expired
+APR_2027 = 1806552000   # Apr 1 2027 — still valid
+JUN_2027 = 1811822400   # Jun 1 2027 — still valid
 
 talking_points = [
     # ── Static traits (always relevant, never expire) ─────────────────────────
@@ -45,25 +44,25 @@ talking_points = [
         "document": "User committed to running a sub-35 minute 5K as their next fitness milestone.",
         "verbose_summary": "After completing their 5K goal in January 2025, the user set a stretch goal of finishing a 5K in under 35 minutes. They acknowledged it would be genuinely challenging and are excited about it.",
         "static_trait": False,
-        "end_timestamp": APR_2026,
+        "end_timestamp": APR_2027,
     },
     {
         "document": "User is saving $500 per month toward an emergency fund.",
         "verbose_summary": "The user set a savings goal of $500/month after realizing they had almost no financial buffer. They audited subscriptions to free up cash and are working toward automating the transfer.",
         "static_trait": False,
-        "end_timestamp": JUN_2026,
+        "end_timestamp": JUN_2027,
     },
     {
         "document": "User is learning to cook 5 new healthy recipes by end of February.",
         "verbose_summary": "Bored of meal-prepping the same foods, the user set a goal to learn 5 new healthy recipes by end of February 2025. They completed chicken stir fry and lentil soup so far — 2 of 5 done.",
         "static_trait": False,
-        "end_timestamp": APR_2026,
+        "end_timestamp": APR_2027,
     },
     {
         "document": "User meditates for 10 minutes every morning and journals for 5 minutes after.",
         "verbose_summary": "The user started a morning meditation habit on New Year's Day 2025 and paired it with a short journaling practice (gratitude, daily intention, mood check). They had a 12-day streak as of mid-January.",
         "static_trait": False,
-        "end_timestamp": JUN_2026,
+        "end_timestamp": JUN_2027,
     },
 
     # ── Time-bounded talking points (expired) ─────────────────────────────────
