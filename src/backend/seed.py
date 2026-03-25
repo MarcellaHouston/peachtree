@@ -1,5 +1,5 @@
 """
-Seed the SQLite database with sample data for the "Reach Staff" user.
+Seed the SQLite database with sample data for the "Reach staff" user.
 
 Run from the src/backend directory:
     python seed.py
@@ -17,7 +17,7 @@ db = Database(create=False)
 db.insert(
     "users",
     [
-        "Reach Staff",
+        "Reach staff",
         "password",
         None,  # week_schedule — populated automatically by check_new_week
         json.dumps(
@@ -49,7 +49,7 @@ db.insert(
         "completion",
         "2026-01-01",
         "2026-12-31",
-        "Reach Staff",
+        "Reach staff",
         "2026-01-01",
         "medium",
         "Operations",
@@ -65,7 +65,7 @@ db.insert(
         "scalar",
         "2026-01-01",
         "2026-12-31",
-        "Reach Staff",
+        "Reach staff",
         "2026-01-01",
         "high",
         "Sales",
@@ -81,7 +81,7 @@ db.insert(
         "count",
         "2026-03-01",
         "2026-09-30",
-        "Reach Staff",
+        "Reach staff",
         "2026-03-01",
         "medium",
         "Product",
@@ -97,7 +97,7 @@ db.insert(
         "range",
         "2026-01-01",
         "2026-12-31",
-        "Reach Staff",
+        "Reach staff",
         "2026-01-01",
         "high",
         "Product",
