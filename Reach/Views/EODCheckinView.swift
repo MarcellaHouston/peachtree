@@ -27,7 +27,6 @@ struct EODCheckinView: View {
                     .padding(.top, 40)
 
                 //Info Card
-
                 VStack(spacing: 11) {
                     Text("Heading to Bed?")
                         .font(.system(size: 24, weight: .semibold))
@@ -43,7 +42,8 @@ struct EODCheckinView: View {
                 }
 
                 .padding(32)
-                .background(Color(red: 0.95, green: 0.92, blue: 0.96))  // soft lavender color from Figma
+                .background(Color(red: 0.95, green: 0.92, blue: 0.96))
+                // soft lavender color from Figma
                 .cornerRadius(30)
                 .padding(.horizontal, 30)
                 .padding(.top, 30)
@@ -57,9 +57,12 @@ struct EODCheckinView: View {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 35))
                         .foregroundColor(.white)
-                        .frame(width: 80, height: 80)  // Size of the circle
-                        .background(Color(red: 0.45, green: 0.35, blue: 0.65))  // The circle color
-                        .clipShape(Circle())  // Makes the bg a circle under mic
+                        // Size of the circle
+                        .frame(width: 80, height: 80)
+                        // The circle color
+                        .background(Color(red: 0.45, green: 0.35, blue: 0.65))
+                        // Makes the bg a circle under mic
+                        .clipShape(Circle())
                         .shadow(
                             color: .black.opacity(0.1),
                             radius: 4,
