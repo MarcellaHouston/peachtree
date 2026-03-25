@@ -220,6 +220,7 @@ class LLMClient:
                                 )
 
             if valid:
+                self.model.flush()
                 return output, True, retries
             retries += 1
 
