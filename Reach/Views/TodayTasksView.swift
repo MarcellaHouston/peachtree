@@ -19,6 +19,7 @@ struct TodayTasksView: View {
     @State private var selectedTaskGoalName: [Int: String] = [:]
     @State private var showEditGoal = false
     
+    /*
     private let fallbackTasks: [TaskItem] = [
         TaskItem(id: -101, title: "Went to the gym", isCompleted: false),
         TaskItem(id: -102, title: "Wrote a page in my journal", isCompleted: false),
@@ -45,6 +46,7 @@ struct TodayTasksView: View {
         -105: "Cook healthy meals",
         -106: "Brush my teeth twice daily"
     ]
+    */
     
     /*
     @State private var tasks: [TaskItem] = [
@@ -99,7 +101,7 @@ struct TodayTasksView: View {
                                 if let goalName = selectedTaskGoalName[task.id] {
                                     if let matchedGoal =
                                         ApiCall.shared.goals.first(where: { $0.title == goalName }) ??
-                                        fallbackGoals.first(where: { $0.title == goalName }) {
+                                        FallbackData.fallbackGoals.first(where: { $0.title == goalName }) {
 
                                         selectedGoal = matchedGoal
                                         showEditGoal = true
@@ -168,8 +170,8 @@ struct TodayTasksView: View {
             } else {
                 print("Using fallback tasks")
 
-                tasks = fallbackTasks
-                selectedTaskGoalName = fallbackTaskGoalNames
+                tasks = FallbackData.fallbackTasks
+                selectedTaskGoalName = FallbackData.fallbackTaskGoalNames
             }
             //REMOVE ONLY FOR DEBUGGING
             //print("=== TASKS IN VIEW ===")
