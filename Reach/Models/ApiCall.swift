@@ -104,6 +104,7 @@ final class ApiCall {
         let body: [String: Any] = goal.requestBody()
         // TODO: Don't let user create a goal with an ID
         
+        
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
         } catch {
