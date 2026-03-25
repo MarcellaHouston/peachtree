@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # Single shared database connection for all requests.
 # Set create=True only once to wipe and rebuild tables from schema.json.
-db = Database(create=True)
+db = Database(create=False)
 
 ALLOWED_MEASURABLE = {"completion", "scalar", "count", "range"}
 
