@@ -11,7 +11,8 @@ import Foundation
 //title is the task text for each taskitem
 //isCompleted is used to check whether a checkmark has been checked or not (True ? False)
 struct TaskItem: Identifiable {
-    let id = UUID()
+    //let id = UUID()
+    var id: Int = -1
     let title: String
     var isCompleted: Bool
     
@@ -24,7 +25,7 @@ struct TaskItem: Identifiable {
                 "measurable": "completion",// No measurable in frontend
                 // No start date in frontend
                 "end_date": "2999-01-01",// No end date in frontend
-                "user": "Reach staff"// TODO: Unhardcode the user
+                "user": "Reach Staff"// TODO: Unhardcode the user
                 
                 // No isCompleted in backend
             ]
