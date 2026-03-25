@@ -315,7 +315,7 @@ def eod_summary():
 
     # Add daily tasks to the LLM's context
     daily_tasks = [
-        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}." for t in tasks
+        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
     ]
     formatted_tasks = "Today's Tasks:\n" + " ".join(daily_tasks)
     llm_model.context(formatted_tasks)
