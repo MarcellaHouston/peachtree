@@ -1,4 +1,5 @@
 import boto3
+import backend.chromaDB.chroma_db as chroma
 
 class LLM:
     def __init__(self, model_strength=1, max_tokens=1024,
@@ -21,12 +22,13 @@ class LLM:
         """Appends new info to the local context list."""
         self.context.append(content)
 
-    def query(self, content: str, flush=True):
+    def query(self, content: str, user_id: str, rag: bool, flush=True):
         """
         Queries the AI model through AWS Bedrock
 
         Args:
             content:    The textual input from the user
+            user_id:    The id of the user querying the LLM
             flush: True if all data stored in the LLM's context and conversation history
                    should be erased after the query is completed.
         """
@@ -34,6 +36,10 @@ class LLM:
         # If user provides an empty input, return a basic message without connecting to AWS Bedrock
         if not content or not content.strip():
             return "How can Reach Help?"
+
+        # Add RAG-relevant docs to context if rag is set to true
+        if rag:
+            self.rag_retrieval(query=content, userid=user_id)
 
         # Construct message using user-input (content) along with past context if available
         if self.context:
@@ -74,3 +80,22 @@ class LLM:
 
         except Exception as e:
             return f"Error: {str(e)}"
+    
+
+    def rag_retrieval(self, query: str, userid: str) -> None:
+        # Get relevant docs related to query from chromadb
+        results = chroma.query(
+            query_text=query,
+            check_end_timestamp=True,
+            user_id=userid,
+            n_results = 25
+        )
+
+        summaries = [struct["verbose_summary"] for struct in results["metadatas"][0]]
+        self.add_to_context("Past User Context")
+        self.add_to_context("\n".join(summaries))
+
+        details = chroma.get_static_traits(user_id=userid)
+        detail_summaries = [struct["verbose_summary"] for struct in results["metadatas"][0]]
+        self.add_to_context("User Details")
+        self.add_to_context("\n".join(detail_summaries))

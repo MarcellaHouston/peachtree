@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
 from bedrock.llm import LLM
+import transcription.aws as aws
+import chromaDB.chroma_db as chroma
 
 app = Flask(__name__)
 
@@ -213,22 +215,21 @@ def daily_goal_digest():
 # End of day summary
 # ---------------------------------------------------------------------------
 
-@app.route('/eod_summary', methods=["POST"])
+@app.route('/stt/eod_summary', methods=["POST"])
 def eod_summary():
     '''Given a transcription from a user's STT, return a LLM-generated summary'''
+    # Get data NEEDS REDOING
     data = request.get_json()
-    user_id = data.get("user_id")
-    transcription = data.get("transcription")
+    audio = data.get("audio") # Redo
+    userid = data.get("user_id")
 
-    if not user_id:
-        return jsonify({"error": "Missing user id"}), 400
+    if not audio or not userid:
+        return jsonify({"error": "Missing information"}), 400
+
+    # Transcribe the audio file
+    aws.upload_to_s3(audio)
+    finished = aws.transcription_service(audio, clean_up=True)
     
-    if not transcription:
-        return jsonify({"error": "Missing transcription"}), 400
-
-    # Get user's daily tasks
-    tasks = db.get_daily_tasks(user_id)
-
     # Setup LLM with eod_summary instructions
     eod_instructions = "You are a social accountability app giving an end" \
                        " of the day summary. You will be given a transcription" \
@@ -236,14 +237,32 @@ def eod_summary():
                        " give a summary of the user's day."
     llm_model = LLM(model_strength=1, instructions=eod_instructions)
 
-    # Add daily tasks to the LLM's context
-    daily_tasks = [f"Task: {t['task']}, Overarching Goal: {t['goal_name']}" for t in tasks]
-    formatted_tasks = " ".join(formatted_tasks)
-    llm_model.add_to_context(daily_tasks)
+    # Get user's daily tasks
+    tasks = db.get_daily_tasks(userid)
 
+    # Add daily tasks to the LLM's context
+    daily_tasks = [f"Task: {t['task']}, Overarching Goal: {t['goal_name']}." for t in tasks]
+    formatted_tasks = " ".join(daily_tasks)
+    llm_model.add_to_context(formatted_tasks)
+    
     # Query the LLM with the transcription, which returns the summary
-    summary = llm_model.query(content=transcription)
-    return jsonify({"summary": summary})
+    summary = llm_model.query(content=finished)
+    return jsonify(
+        {
+            "summary": summary,
+            "transcription": finished
+        }
+    )
+
+
+# Save convo to chromadb
+@app.route('/save_convo', methods=["POST"])
+def save_convo():
+    data = request.get_json()
+    userid = data.get("user_id")
+    summary = data.get("summary")
+    transcription = data.get("transcription")
+
 
 
 
