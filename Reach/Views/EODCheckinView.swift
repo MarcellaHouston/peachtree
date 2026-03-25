@@ -48,7 +48,8 @@ struct EODCheckinView: View {
                 .padding(.horizontal, 30)
                 .padding(.top, 30)
 
-                Spacer()
+                //Causing Issues
+                //Spacer()
 
                 //mic button stuff
 
@@ -66,23 +67,33 @@ struct EODCheckinView: View {
                             y: 4
                         )
                 }
-
+                //This padding controls vertical space for mic section
+                .padding(.top, 50)
                 .buttonStyle(MicButtonStyle())
 
                 Text(isRecording ? "Listening..." : "Press to begin to speak")
                     .font(.system(size: 20, weight: .regular))
                     .foregroundColor(isRecording ? .red : .black)
                     .padding(.top, 24)
+                /*ORIGINAL REMOVED CAUSING ISSUES
                 Spacer()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(red: 0.93, green: 0.93, blue: 0.93))
+                 */
             }
+            //Correction
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(red: 0.93, green: 0.93, blue: 0.93))
+            
             //bottom navigation bar for switching between tabs
             BottomNavView(selectedTab: $selectedTab)
 
         }
-
-        .background(Color(red: 0.93, green: 0.93, blue: 0.93).ignoresSafeArea())
+        //ORIGINAL REMOVED CAUSING ISSUES
+        //.background(Color(red: 0.93, green: 0.93, blue: 0.93).ignoresSafeArea())
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.black)
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
