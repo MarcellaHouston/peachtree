@@ -37,7 +37,7 @@ def validate_goal(goal):
     if not goal.get("end_date"):
         errors.append("end_date is required")
 
-    if not goal.get("user_id"):
+    if not goal.get("user"):
         errors.append("user is required")
 
     if not goal.get("difficulty"):
@@ -76,7 +76,7 @@ def get_goals():
             "measurable": row[3],
             "start_date": row[4],
             "end_date": row[5],
-            "user_id": row[6],
+            "user": row[6],
             "active_date": active_date,
             "difficulty": row[8],
             "category": row[9],
@@ -136,7 +136,7 @@ def create_goal():
             goal["measurable"],
             goal["start_date"],
             goal["end_date"],
-            goal["user_id"],
+            goal["user"],
             goal["active_date"],
             goal["difficulty"],
             goal.get("category"),
@@ -173,8 +173,8 @@ def update_goal():
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
     # The API uses "user" but the DB column is "user_id" — remap it here
-    if "user_id" in updates:
-        updates["user_id"] = updates.pop("user_id")
+    if "user" in updates:
+        updates["user_id"] = updates.pop("user")
 
     db.update("goals", goal_id, updates)
 
