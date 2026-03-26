@@ -219,7 +219,7 @@ class Database:
         # task details + the parent goal name for each one.
         from datetime import date
 
-        today_name = _ALL_DAYS[(date.today().weekday()) % 7]  # e.g. "monday"
+        today_name = _ALL_DAYS[(date.today().weekday()) + 1 % 7]  # e.g. "monday"
 
         row = self._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
