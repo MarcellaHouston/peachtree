@@ -187,7 +187,11 @@ def create_goal():
                     task["impetus"],
                 ],
             )
-        db.assign_weekly_tasks(user_id=goal["user_id"], this_sunday=db.this_sunday())
+        schedule = db.assign_weekly_tasks(
+            user_id=goal["user_id"], this_sunday=db.this_sunday()
+        )
+        logger.info("generate new schedule")
+        logger.info(str(schedule))
     else:
         logger.info("Error with LLM")
         return (
