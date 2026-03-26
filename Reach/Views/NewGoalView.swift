@@ -192,7 +192,10 @@ struct NewGoalView: View {
                 }
                     .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Create Goal") {
-                    // TODO: Inform the backend
+                    // Post goal to the backend
+                    Task {
+                        await ApiCall.shared.createGoal(goal: goal)
+                    }
                     isShowing = false
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))

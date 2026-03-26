@@ -1,6 +1,18 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 from sql_db import Database
+from bedrock.llm import LLMClient
+import transcription.aws as aws
+import chromaDB.chroma_db as chroma
+import os
+import uuid
+from werkzeug.utils import secure_filename
+
+import logging
+
+# Set up logging to output to stdout/stderr
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -37,18 +49,21 @@ def validate_goal(goal):
     if not goal.get("end_date"):
         errors.append("end_date is required")
 
-    if not goal.get("user"):
-        errors.append("user is required")
+    if not goal.get("user_id"):
+        errors.append("user_id is required")
 
     if not goal.get("difficulty"):
         errors.append("difficulty is required")
 
     return errors
 
-
+@app.route("/")
+def hello():
+    return "Hello"
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
+
 
 @app.route("/goals", methods=["POST"])
 def get_goals():
@@ -75,7 +90,7 @@ def get_goals():
             "measurable": row[3],
             "start_date": row[4],
             "end_date": row[5],
-            "user": row[6],
+            "user_id": row[6],
             "active_date": active_date,
             "difficulty": row[8],
             "category": row[9],
@@ -135,7 +150,7 @@ def create_goal():
             goal["measurable"],
             goal["start_date"],
             goal["end_date"],
-            goal["user"],
+            goal["user_id"],
             goal["active_date"],
             goal["difficulty"],
             goal.get("category"),
@@ -172,8 +187,8 @@ def update_goal():
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
     # The API uses "user" but the DB column is "user_id" — remap it here
-    if "user" in updates:
-        updates["user_id"] = updates.pop("user")
+    if "user_id" in updates:
+        updates["user_id"] = updates.pop("user_id")
 
     db.update("goals", goal_id, updates)
 
@@ -204,9 +219,23 @@ def delete_goal():
     return "", 204
 
 
+@app.route("/goals/complete", methods=["POST"])
+def complete_task():
+    # Mark a task as done or not-done in the user's current week_schedule.
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    task_id = data.get("task_id")
+    status = data.get("status")
+    if not user_id or task_id is None or status is None:
+        return jsonify({"error": "Missing user_id, task_id, or status"}), 400
+    db.set_task_status(user_id, task_id, status)
+    return "", 204
+
+
 # ---------------------------------------------------------------------------
 # Weekly schedule
 # ---------------------------------------------------------------------------
+
 
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
@@ -215,7 +244,7 @@ def weekly_schedule():
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
     # all active tasks to days based on the user's availability (round-robin).
     # Returns: { new_week: bool, schedule: { curr_week_start, monday: [...], ... } }
-    
+
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     if not user_id:
@@ -234,11 +263,120 @@ def daily_goal_digest():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-        (date.today().weekday() + 1) % 7
-    ]
+    today_name = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][(date.today().weekday() + 1) % 7]
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
+
+
+# ---------------------------------------------------------------------------
+# End of day summary
+# ---------------------------------------------------------------------------
+
+
+@app.route("/stt/eod_summary", methods=["POST"])
+def eod_summary():
+    """Given a transcription from a user's STT, return a LLM-generated summary"""
+    # Grab metadata from user
+    logger.info("🚀 Reached the EOD Summary endpoint")
+    userid = request.headers.get("User-ID")
+    file_type = request.headers.get("File-Type", ".m4a")
+    audio_file = request.data
+    if not userid:
+        return jsonify({"error": "Missing User-ID in header"}), 401
+
+    if not file_type:
+        return jsonify({"error": "Missing File Type in header"}), 402
+
+    if not audio_file:
+        return jsonify({"error": "Missing Audio File"}), 403
+    # Create temporary audio filename and path for transcription
+    temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
+    temp_path = os.path.join("/tmp", temp_filename)
+
+    # Transcribe the audio file
+    transcription = ""
+    logger.info("1")
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(audio_file)
+
+        # Upload to s3 and then transcribe
+        aws.upload_to_s3(temp_path)
+        transcription = aws.transcription_service(temp_path, clean_up=True)
+        logger.info("2")
+        # Cleanup local file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    except Exception as e:
+        logger.info(e)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # Final cleanup if something goes wrong
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    if not transcription:
+        return jsonify({"error": "Transcription failed"}), 400
+
+    # Setup LLM with eod_summary instructions
+    llm_model = LLMClient(
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+    )
+
+    # Get user's daily tasks
+    tasks = db.get_daily_tasks(userid)
+
+    # Add daily tasks to the LLM's context
+    daily_tasks = [
+        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
+    ]
+    formatted_tasks = "Today's Tasks:\n" + " ".join(daily_tasks)
+    llm_model.context(formatted_tasks)
+
+    # Query the LLM with the transcription, which returns the summary
+    summary = llm_model.query(content=transcription)
+    return jsonify({"summary": summary, "transcription": transcription})
+
+
+# Save convo to chromadb
+@app.route("/stt/save_convo", methods=["POST"])
+def save_convo():
+    data = request.get_json()
+    userid = data.get("user_id")
+    transcription = data.get("transcription")
+
+    if not userid or not transcription:
+        return jsonify({"error": "Missing information"})
+
+    # Initialize LLMClient
+    llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
+
+    # Query the LLM to get the entries for our conversation
+    json_convo_args, valid, _ = llm_client.query(transcription)
+
+    if not valid:
+        return jsonify({"error": "LLM was unable to get valid entries"}), 400
+
+    # Store convo in chromadb with what the LLM returned
+    for arg in json_convo_args:
+        chroma.store_talking_point(
+            user_id=userid,
+            document=arg.get("document"),
+            verbose_summary=arg.get("verbose_summary"),
+            static_trait=bool(arg.get("static_trait")),
+            end_timestamp=int(arg.get("end_timestamp")),
+        )
+
+    return "", 204
 
 
 if __name__ == "__main__":

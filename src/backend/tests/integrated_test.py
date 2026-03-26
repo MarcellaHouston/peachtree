@@ -55,6 +55,16 @@ class IntegrationTestCase(unittest.TestCase):
             url, data=json.dumps(data), content_type="application/json"
         )
 
+    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3):
+        self.real_db._run_param(
+            """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
+               start_date, end_date, impetus)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Do the thing", weekly_frequency, weight,
+             date.today().isoformat(), "2027-12-31", impetus)
+        )
+        self.real_db._commit()
+
     def create_goal(self, **overrides):
         """
         POST a valid goal to /goals/create and assert it was accepted (204).
@@ -66,7 +76,7 @@ class IntegrationTestCase(unittest.TestCase):
                 "name": "Run 5k",
                 "measurable": "completion",
                 "end_date": "2027-12-31",
-                "user": "alice",
+                "user_id": "alice",
                 "difficulty": "medium",
                 **overrides,
             }
@@ -94,7 +104,7 @@ class TestCreateGoalIntegration(IntegrationTestCase):
         # Row columns: (id, name, description, measurable, start_date, end_date, user)
         self.create_goal(
             name="Meditate",
-            user="bob",
+            user_id="bob",
             measurable="count",
             start_date="2026-01-01",
             end_date="2026-12-31",
@@ -204,7 +214,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
             "measurable",
             "start_date",
             "end_date",
-            "user",
+            "user_id",
             "active_date",
             "difficulty",
             "category",
@@ -265,7 +275,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Run 10k",
                     "measurable": "completion",
                     "end_date": "2027-12-31",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -283,7 +293,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Updated",
                     "measurable": "scalar",
                     "end_date": "2027-06-01",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -305,7 +315,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Goal One Modified",
                     "measurable": "completion",
                     "end_date": "2027-12-31",
-                    "user": "alice",
+                    "user_id": "alice",
                     "difficulty": "medium",
                 }
             },
@@ -330,7 +340,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "name": "Ghost",
                     "measurable": "count",
                     "end_date": "2027-01-01",
-                    "user": "nobody",
+                    "user_id": "nobody",
                     "difficulty": "low",
                 }
             },
@@ -347,14 +357,21 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
     def _create_and_get_id(self, **overrides):
         self.create_goal(**overrides)
         rows = self.real_db.select("goals", "all")
-        return rows[0][0]
+        return rows[-1][0]  # last inserted row
+
+    def _expected_snooze_date(self, weeks):
+        # Compute expected active_date: today + N weeks, snapped to nearest past Sunday
+        from datetime import timedelta
+        shifted = date.today() + timedelta(weeks=weeks)
+        days_since_sunday = (shifted.weekday() + 1) % 7
+        return (shifted - timedelta(days=days_since_sunday)).isoformat()
 
     def test_snooze_pushes_active_date_forward(self):
         goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
         resp = self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
         self.assertEqual(resp.status_code, 204)
         rows = self.real_db.select("goals", "all")
-        self.assertEqual(rows[0][7], "2026-01-11")  # 2026-01-01 + 2 weeks = Jan 15 (Thu) → back to Sun Jan 11
+        self.assertEqual(rows[0][7], self._expected_snooze_date(2))
 
     def test_snooze_does_not_change_start_date(self):
         goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
@@ -369,6 +386,85 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
     def test_snooze_missing_fields_returns_400(self):
         resp = self.post_json("/goals/snooze", {"id": 1})
         self.assertEqual(resp.status_code, 400)
+
+    def test_snooze_shifts_from_today_not_active_date(self):
+        # active_date is set far in the past — snooze should still be based on today
+        goal_id = self._create_and_get_id(
+            start_date="2020-01-01", end_date="2027-12-31", active_date="2020-01-01"
+        )
+        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 1})
+        rows = self.real_db.select("goals", "all")
+        self.assertEqual(rows[0][7], self._expected_snooze_date(1))
+
+    def test_snooze_removes_tasks_from_week_schedule(self):
+        # Insert user with a week_schedule that includes the goal's tasks
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability, week_schedule) VALUES (?, ?, ?, ?)",
+            ("alice", "pw", json.dumps({"monday": 5}), None)
+        )
+        self.real_db._commit()
+        goal_id = self._create_and_get_id(end_date="2027-12-31")
+        self._insert_task(goal_id)
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+
+        # Manually set a week_schedule that includes this task
+        schedule = {"curr_week_start": "2026-03-22", "monday": [{"task_id": task_id, "completed": False}],
+                    "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []}
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(schedule), "alice")
+        )
+        self.real_db._commit()
+
+        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        saved = json.loads(row[0])
+        for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+            self.assertNotIn(task_id, [e["task_id"] for e in saved.get(day, [])], f"task_id still in {day} after snooze")
+
+    def test_snooze_leaves_other_goals_tasks_in_schedule(self):
+        # Snoozing goal A should not touch goal B's tasks in the schedule
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            ("alice", "pw", json.dumps({"monday": 5}))
+        )
+        self.real_db._commit()
+
+        goal_a = self._create_and_get_id(name="Goal A", end_date="2027-12-31")
+        goal_b = self._create_and_get_id(name="Goal B", end_date="2027-12-31")
+        self._insert_task(goal_a)
+        self._insert_task(goal_b)
+        rows = self.real_db._run("SELECT task_id FROM tasks ORDER BY task_id").fetchall()
+        task_a, task_b = rows[0][0], rows[1][0]
+
+        schedule = {"curr_week_start": "2026-03-22",
+                    "monday": [{"task_id": task_a, "completed": False}, {"task_id": task_b, "completed": False}],
+                    "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []}
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(schedule), "alice")
+        )
+        self.real_db._commit()
+
+        self.post_json("/goals/snooze", {"id": goal_a, "weeks": 2})
+
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        saved = json.loads(row[0])
+        monday_task_ids = [e["task_id"] for e in saved["monday"]]
+        self.assertNotIn(task_a, monday_task_ids)
+        self.assertIn(task_b, monday_task_ids)
+
+    def test_snooze_goal_with_no_tasks_does_not_error(self):
+        goal_id = self._create_and_get_id(end_date="2027-12-31")
+        resp = self.post_json("/goals/snooze", {"id": goal_id, "weeks": 1})
+        self.assertEqual(resp.status_code, 204)
+        rows = self.real_db.select("goals", "all")
+        self.assertEqual(rows[0][7], self._expected_snooze_date(1))
 
 
 # ---------------------------------------------------------------------------
@@ -385,16 +481,6 @@ class TestWeeklySchedule(IntegrationTestCase):
         )
         self.real_db._commit()
 
-    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3):
-        self.real_db._run_param(
-            """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (goal_id, "Do the thing", weekly_frequency, weight,
-             date.today().isoformat(), "2027-12-31", impetus)
-        )
-        self.real_db._commit()
-
     def test_new_week_assigns_tasks(self):
         self._insert_user("alice")
         self.create_goal(user="alice", start_date=date.today().isoformat(), end_date="2027-12-31")
@@ -407,9 +493,14 @@ class TestWeeklySchedule(IntegrationTestCase):
         self.assertTrue(body["new_week"])
         schedule = body["schedule"]
         # 2 occurrences should be assigned across Mon/Wed/Fri
+        all_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         total = sum(len(v) for k, v in schedule.items() if k != "curr_week_start")
         self.assertEqual(total, 2)
         self.assertIn("curr_week_start", schedule)
+        # Every task entry across all days should have completed=False
+        for day in all_days:
+            for entry in schedule.get(day, []):
+                self.assertFalse(entry["completed"])
 
     def test_same_week_returns_cached_schedule(self):
         self._insert_user("alice")
@@ -477,8 +568,8 @@ class TestDailyGoalDigest(IntegrationTestCase):
         all_days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
         schedule = json.dumps({
             "curr_week_start": "2026-03-15",
-            today_name: [task_id],
-            **{d: [] for d in all_days if d != today_name}
+            today_name: [{"task_id": task_id, "completed": False}],
+            **{d: [] for d in all_days if d != today_name},
         })
         self.real_db._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?", (schedule, username)
@@ -504,7 +595,8 @@ class TestDailyGoalDigest(IntegrationTestCase):
         self.assertIn("task_id", t)
         self.assertIn("task", t)
         self.assertIn("goal_name", t)
-        self.assertEqual(len(t), 3)  # only these 3 fields
+        self.assertIn("completed", t)
+        self.assertEqual(len(t), 4)
 
     def test_day_field_matches_today(self):
         from datetime import date
@@ -567,6 +659,89 @@ class TestDeleteGoalIntegration(IntegrationTestCase):
     def test_delete_nonexistent_id_returns_204(self):
         resp = self.post_json("/goals/delete", {"id": 9999})
         self.assertEqual(resp.status_code, 204)
+
+
+# ---------------------------------------------------------------------------
+# POST /goals/complete  (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestGoalCompleteIntegration(IntegrationTestCase):
+    def _setup(self):
+        # Insert user + goal + task, set a week_schedule with the task on today
+        today_name = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][
+            (date.today().weekday() + 1) % 7
+        ]
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            ("alice", "pw", json.dumps({"monday": 5}))
+        )
+        self.real_db._commit()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+        all_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        schedule = json.dumps({
+            "curr_week_start": "2026-03-22",
+            today_name: [{"task_id": task_id, "completed": False}],
+            **{d: [] for d in all_days if d != today_name},
+        })
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?", (schedule, "alice")
+        )
+        self.real_db._commit()
+        return task_id
+
+    def _get_completed(self):
+        today_name = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][
+            (date.today().weekday() + 1) % 7
+        ]
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        schedule = json.loads(row[0])
+        return {e["task_id"]: e["completed"] for e in schedule[today_name]}
+
+    def test_mark_task_done(self):
+        task_id = self._setup()
+        resp = self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": True})
+        self.assertEqual(resp.status_code, 204)
+        self.assertTrue(self._get_completed()[task_id])
+
+    def test_mark_task_undone(self):
+        task_id = self._setup()
+        self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": True})
+        self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": False})
+        self.assertFalse(self._get_completed()[task_id])
+
+    def test_missing_user_id_returns_400(self):
+        resp = self.post_json("/goals/complete", {"task_id": 1, "status": True})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_task_id_returns_400(self):
+        resp = self.post_json("/goals/complete", {"user_id": "alice", "status": True})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_status_returns_400(self):
+        resp = self.post_json("/goals/complete", {"user_id": "alice", "task_id": 1})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_completed_initialized_false_on_assign(self):
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            ("alice", "pw", json.dumps({"monday": 5, "wednesday": 5}))
+        )
+        self.real_db._commit()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=2)
+        resp = self.post_json("/schedule/weekly", {"user_id": "alice"})
+        schedule = resp.get_json()["schedule"]
+        all_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        for day in all_days:
+            for entry in schedule.get(day, []):
+                self.assertFalse(entry["completed"])
 
 
 if __name__ == "__main__":

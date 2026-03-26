@@ -12,7 +12,43 @@ import SwiftUI
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
     @Binding var selectedTab: AppTab
+    //Backend TaskItem retrieval
+    @State private var tasks: [TaskItem] = []
+    //Popup Code
+    @State private var selectedGoal: GoalItem? = nil
+    @State private var selectedTaskGoalName: [Int: String] = [:]
+    @State private var showEditGoal = false
     
+    /*
+    private let fallbackTasks: [TaskItem] = [
+        TaskItem(id: -101, title: "Went to the gym", isCompleted: false),
+        TaskItem(id: -102, title: "Wrote a page in my journal", isCompleted: false),
+        TaskItem(id: -103, title: "Studied for 2 hours", isCompleted: false),
+        TaskItem(id: -104, title: "Applied to 5 jobs", isCompleted: false),
+        TaskItem(id: -105, title: "Make a keto meal", isCompleted: false),
+        TaskItem(id: -106, title: "Brushed my teeth", isCompleted: false)
+    ]
+    
+    private let fallbackGoals: [GoalItem] = [
+        GoalItemBuilder().id(-201).title("Journal daily").build(),
+        GoalItemBuilder().id(-202).title("Brush my teeth twice daily").build(),
+        GoalItemBuilder().id(-203).title("Study 2 hours a day").build(),
+        GoalItemBuilder().id(-204).title("Apply for 5 jobs a day").build(),
+        GoalItemBuilder().id(-205).title("Go to the gym 3 times a week").build(),
+        GoalItemBuilder().id(-206).title("Cook healthy meals").build()
+    ]
+    
+    private let fallbackTaskGoalNames: [Int: String] = [
+        -101: "Go to the gym 3 times a week",
+        -102: "Journal daily",
+        -103: "Study 2 hours a day",
+        -104: "Apply for 5 jobs a day",
+        -105: "Cook healthy meals",
+        -106: "Brush my teeth twice daily"
+    ]
+    */
+    
+    /*
     @State private var tasks: [TaskItem] = [
         TaskItem(title: "Went to the gym", isCompleted: false),
         TaskItem(title: "Wrote a page in my journal", isCompleted: false),
@@ -21,6 +57,7 @@ struct TodayTasksView: View {
         TaskItem(title: "Make a keto meal", isCompleted: true),
         TaskItem(title: "Brushed my teeth", isCompleted: false)
     ]
+    */
 
     //this property counts how many tasks are currently completed
     //it filters the task list and returns the number of tasks marked as done
@@ -60,7 +97,17 @@ struct TodayTasksView: View {
                 ScrollView(showsIndicators: true) {
                     VStack(spacing: 26) {
                         ForEach($tasks) { $task in
-                            TodayTaskRow(task: $task)
+                            TodayTaskRow(task: $task, onTaskTap: {
+                                if let goalName = selectedTaskGoalName[task.id] {
+                                    if let matchedGoal =
+                                        ApiCall.shared.goals.first(where: { $0.title == goalName }) ??
+                                        FallbackData.fallbackGoals.first(where: { $0.title == goalName }) {
+
+                                        selectedGoal = matchedGoal
+                                        showEditGoal = true
+                                    }
+                                }
+                            })
                         }
                     }
                     .padding(.horizontal, 28)
@@ -110,6 +157,44 @@ struct TodayTasksView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
         .ignoresSafeArea(edges: .bottom)
+        
+        //API Call .task
+        .task {
+            //API Call
+            await ApiCall.shared.refreshGoals()
+            let didLoadTasks = await ApiCall.shared.refreshTasks()
+
+            if didLoadTasks {
+                tasks = ApiCall.shared.tasks
+                selectedTaskGoalName = ApiCall.shared.taskGoalNames
+            } else {
+                print("Using fallback tasks")
+
+                tasks = FallbackData.fallbackTasks
+                selectedTaskGoalName = FallbackData.fallbackTaskGoalNames
+            }
+            //REMOVE ONLY FOR DEBUGGING
+            //print("=== TASKS IN VIEW ===")
+            //for task in tasks {
+          //      print("ID: \(task.id), TITLE: \(task.title)")
+         //   }
+            //REMOVE ONLY FOR DEBUGGING
+        }
+        //gray scale then popup appears
+        .overlay {
+            if showEditGoal, let selectedGoal = selectedGoal {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+
+                VStack {
+                    Spacer()
+
+                    EditGoalView(goal: selectedGoal, isShowing: $showEditGoal)
+
+                    Spacer()
+                }
+            }
+        }
     }
 }
 
@@ -117,6 +202,7 @@ struct TodayTasksView: View {
 //the square on the left toggles the task and the purple button shows the task text
 private struct TodayTaskRow: View {
     @Binding var task: TaskItem
+    let onTaskTap: () -> Void
 
     var body: some View {
         HStack(spacing: 18) {
@@ -149,6 +235,7 @@ private struct TodayTaskRow: View {
             //task content button
             //this displays the task name inside the purple rounded rectangle
             Button {
+                onTaskTap()
             } label: {
                 HStack(spacing: 0) {
                     //spacers keep the text centered within the button

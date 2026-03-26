@@ -19,6 +19,8 @@ final class ApiCall {
     
     private(set) var goals = [GoalItem]()
     private(set) var tasks = [TaskItem]()
+    //Added
+    private(set) var taskGoalNames: [Int:String] = [:]
     
     // Syncs local goals variable to database info
     func refreshGoals() async {
@@ -36,17 +38,46 @@ final class ApiCall {
     }
     
     // Syncs local tasks variable to database info
-    func refreshTasks() async {
-        // TODO: This is a draft of estimated endpoint
-        struct Res: Codable {
-            let tasks: [TaskSchema]
+    func refreshTasks() async -> Bool{
+        struct DailyDigestTask: Codable {
+            let task_id: Int
+            let task: String
+            let goal_name: String
         }
-        let body: [String: Any] = [:]
+        
+        struct Res: Codable {
+            let day: String
+            let tasks: [DailyDigestTask]
+        }
+        
+        let body: [String: Any] = [
+            "user_id": "Reach Staff"
+        ]
+        
         do {
-            let res: Res = try await sendRequest("POST", body, "tasks")
-            self.tasks = res.tasks.map() { x in x.buildTask() }
-        } catch {
+            //test backend
+            let res: Res = try await sendRequest("POST", body, "daily_goal_digest")
+            //test fallback
+            //let res: Res = try await sendRequest("POST", body, "daily_goal_digest_broke")
+            self.tasks = res.tasks.map {
+                TaskItem(id: $0.task_id, title: $0.task, isCompleted: false)
+            }
+            
+            self.taskGoalNames = [:]
+            for task in res.tasks {
+                self.taskGoalNames[task.task_id] = task.goal_name
+            }
+            //REMOVE ONLY FOR DEBUGGING
+            //print("=== TASKS FROM BACKEND ===")
+            //for task in self.tasks {
+             //   print("ID: \(task.id), TITLE: \(task.title)")
+           // }
+          //  print("==========================")
+            //REMOVE ONLY FOR DEBUGGING
+            return true
+        }catch {
             print(error)
+            return false
         }
     }
     
@@ -64,6 +95,7 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/update")
         } catch {
+            print("updateGoal ERROR:")
             print(error)
         }
         await refreshGoals()
@@ -72,9 +104,26 @@ final class ApiCall {
         let body: [String: Any] = goal.requestBody()
         // TODO: Don't let user create a goal with an ID
         
+        
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
         } catch {
+            print("createGoal ERROR:")
+            print(error)
+        }
+        await refreshGoals()
+    }
+    func snoozeGoal(goal: GoalItem) async {
+        if goal.id == -1 {
+            print("Snoozing goal should not have dummy id")
+            return
+        }
+        let body: [String:Any] = ["id": goal.id, "weeks": 1]
+        
+        do {
+            let _: Empty = try await sendRequest("POST", body, "goals/snooze")
+        } catch {
+            print("snoozeGoal ERROR:")
             print(error)
         }
         await refreshGoals()
@@ -90,6 +139,7 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/delete")
         } catch {
+            print("deleteGoal ERROR:")
             print(error)
         }
         await refreshGoals()
@@ -104,6 +154,7 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "tasks/update")
         } catch {
+            print("updateTask ERROR:")
             print(error)
         }
         await refreshTasks()
@@ -115,6 +166,7 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "tasks/create")
         } catch {
+            print("createTask ERROR:")
             print(error)
         }
         await refreshTasks()
@@ -126,6 +178,7 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "tasks/delete")
         } catch {
+            print("deleteTask ERROR:")
             print(error)
         }
         await refreshTasks()
@@ -153,7 +206,7 @@ final class ApiCall {
         guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
             throw URLError(.badServerResponse)
         }
-
+        
         //print(String(data: data, encoding: .utf8)!)
         // TODO: Fix inconsequential bug of trying to decode an Empty data
         let decodedData = try JSONDecoder().decode(T.self, from: data)

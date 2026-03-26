@@ -91,7 +91,7 @@ def transcription_service(filename: str, clean_up=False) -> str:
 
         if job_status in ['COMPLETED', 'FAILED']:
             break
-        time.sleep(5)
+        time.sleep(2)
 
     # Once completed, fetch and print the English transcript
     text = ""
@@ -104,7 +104,6 @@ def transcription_service(filename: str, clean_up=False) -> str:
     else:
         # If transcription failed, throw an error
         raise TranscriptionFailure("Transcription failed.")
-        return "Transcription failed."
 
     # if cleanup was passed in, cleanup by deleting job and audio file
     if clean_up:

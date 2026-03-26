@@ -60,34 +60,56 @@ def query(
     """
     Semantically search talking points.
 
+    Returns the top n_results non-static talking points by relevance, plus
+    all static traits unconditionally (they are never crowded out by n_results).
+
     Args:
         query_text:           Text to embed and search against stored documents.
         check_end_timestamp:  If True (default), exclude records where end_timestamp
                               is in the past (i.e. expired). If False, return all.
         user_id:              Optional filter to restrict results to one user.
-        n_results:            Number of top matches to return.
+        n_results:            Number of top non-static matches to return.
 
     Returns:
-        ChromaDB query result dict (ids, documents, metadatas, distances).
+        Dict with keys ids, documents, metadatas, distances.
+        Static trait entries have distance=None (fetched via get, not query).
     """
-    conditions = []
+    # --- Non-static semantic search ---
+    conditions = [{"static_trait": {"$eq": False}}]
 
     if user_id:
         conditions.append({"user_id": {"$eq": user_id}})
     if check_end_timestamp:
         conditions.append({"end_timestamp": {"$gte": int(time.time())}})
 
-    where = (
-        {"$and": conditions}
-        if len(conditions) > 1
-        else conditions[0] if conditions else None
+    where = {"$and": conditions} if len(conditions) > 1 else conditions[0]
+
+    non_static = talking_points_collection.query(
+        query_texts=[query_text],
+        n_results=n_results,
+        where=where,
     )
 
-    kwargs: dict = {"query_texts": [query_text], "n_results": n_results}
-    if where:
-        kwargs["where"] = where
+    # Unpack the single-query wrapper (list-of-lists) from ChromaDB
+    ns_ids = non_static["ids"][0]
+    ns_docs = non_static["documents"][0]
+    ns_metas = non_static["metadatas"][0]
+    ns_distances = non_static["distances"][0]
 
-    return talking_points_collection.query(**kwargs)
+    # --- Static traits (all of them, always) ---
+    static = get_static_traits(check_end_timestamp=check_end_timestamp, user_id=user_id)
+
+    combined_ids = ns_ids + static["ids"]
+    combined_docs = ns_docs + static["documents"]
+    combined_metas = ns_metas + static["metadatas"]
+    combined_distances = ns_distances + [None] * len(static["ids"])
+
+    return {
+        "ids": combined_ids,
+        "documents": combined_docs,
+        "metadatas": combined_metas,
+        "distances": combined_distances,
+    }, len(ns_ids)
 
 
 def get_static_traits(
