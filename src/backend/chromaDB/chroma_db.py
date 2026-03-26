@@ -3,16 +3,21 @@ import uuid
 import chromadb
 from typing import Optional
 from chromadb.utils import embedding_functions
-
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 client = chromadb.PersistentClient(path="./chroma_db")
 
 # Single collection storing one document per talking point.
 # Each document is a short LLM summary (embedded for semantic search).
 # Metadata holds end_timestamp (expiry), verbose_summary, static_trait, user_id.
+logger.info("📥 Pre-loading ChromaDB Embedding Model...")
 ef = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name="all-MiniLM-L6-v2", 
     device="cpu"
 )
+dummy_vec = ef(["warmup"])
+logger.info("✅ Embedding Model Loaded.")
 
 talking_points_collection = client.get_or_create_collection(
     name="talking_points",
