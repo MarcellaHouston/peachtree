@@ -144,7 +144,7 @@ def create_goal():
     goal["end_date"] = parse_date(goal["end_date"]).isoformat()
     # active_date starts equal to start_date and can be pushed forward via snooze
     goal["active_date"] = goal["start_date"]
-    
+
     if goal.get("days_of_week")[-1] == ",":
         goal["days_of_week"] = goal["days_of_week"][:-1]
 
@@ -311,7 +311,7 @@ def daily_goal_digest():
         "friday",
         "saturday",
         "sunday",
-    ][(date.today().weekday() + 1) % 7]
+    ][(date.today().weekday()) % 7]
     db.check_new_week(user_id)
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})

@@ -2,7 +2,15 @@ import sqlite3 as sql
 import json
 import os
 
-_ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_ALL_DAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -29,10 +37,13 @@ class Database:
         # the schema columns (excluding id, which is auto-assigned).
         assert table in self.schema
         placeholders = ", ".join(["?"] * len(args))
-        cols = ", ".join([
-            k for k, v in self.schema[table].items()
-            if "PRIMARY KEY" not in v and not k.upper().startswith("FOREIGN KEY")
-        ])
+        cols = ", ".join(
+            [
+                k
+                for k, v in self.schema[table].items()
+                if "PRIMARY KEY" not in v and not k.upper().startswith("FOREIGN KEY")
+            ]
+        )
         print(cols)
         self._run_param(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", args)
         self._commit()
@@ -74,7 +85,10 @@ class Database:
         # to the nearest past Sunday. Also removes the goal's tasks from the
         # user's current week_schedule so they no longer appear on the calendar.
         from datetime import date, timedelta
-        row = self._run_param("SELECT user_id FROM goals WHERE id = ?", (goal_id,)).fetchone()
+
+        row = self._run_param(
+            "SELECT user_id FROM goals WHERE id = ?", (goal_id,)
+        ).fetchone()
         if row is None:
             return False
         user_id = row[0]
@@ -88,7 +102,8 @@ class Database:
 
         # Remove this goal's tasks from the user's current week_schedule
         task_ids = {
-            r[0] for r in self._run_param(
+            r[0]
+            for r in self._run_param(
                 "SELECT task_id FROM tasks WHERE goal_id = ?", (goal_id,)
             ).fetchall()
         }
@@ -100,10 +115,12 @@ class Database:
                 schedule = json.loads(sched_row[0])
                 for day in _ALL_DAYS:
                     if day in schedule:
-                        schedule[day] = [e for e in schedule[day] if e["task_id"] not in task_ids]
+                        schedule[day] = [
+                            e for e in schedule[day] if e["task_id"] not in task_ids
+                        ]
                 self._run_param(
                     "UPDATE users SET week_schedule = ? WHERE username = ?",
-                    (json.dumps(schedule), user_id)
+                    (json.dumps(schedule), user_id),
                 )
                 self._commit()
 
@@ -116,6 +133,7 @@ class Database:
         # Saves the resulting schedule to the user's week_schedule column and updates
         # each task's days_of_week column.
         from datetime import date
+
         today = date.today().isoformat()
 
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
@@ -131,28 +149,31 @@ class Database:
 
         # Fetch all tasks for active goals (active_date passed, end_date not yet reached),
         # sorted highest impetus first so urgent tasks get the best day slots
-        tasks = self._run_param("""
+        tasks = self._run_param(
+            """
             SELECT t.task_id, t.weekly_frequency, t.impetus
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
             ORDER BY t.impetus DESC
-        """, (user_id, today, today)).fetchall()
+        """,
+            (user_id, today, today),
+        ).fetchall()
 
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
         n = len(avail_days)
 
         for task_id, freq, _ in tasks:
-            freq = min(freq, n)           # can't schedule more times than available days
-            step = max(1, n // freq)      # space out slots evenly across available days
+            freq = min(freq, n)  # can't schedule more times than available days
+            step = max(1, n // freq)  # space out slots evenly across available days
             chosen = [avail_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
             # Persist which days this task is assigned to
             self._run_param(
                 "UPDATE tasks SET days_of_week = ? WHERE task_id = ?",
-                (json.dumps(chosen), task_id)
+                (json.dumps(chosen), task_id),
             )
 
         # Store the full schedule on the user row so the frontend can read it back.
@@ -162,7 +183,7 @@ class Database:
         }
         self._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?",
-            (json.dumps(schedule), user_id)
+            (json.dumps(schedule), user_id),
         )
         self._commit()
         return schedule
@@ -173,6 +194,7 @@ class Database:
         # reassign tasks and return (True, new_schedule). If same week, return
         # the cached schedule without touching anything: (False, cached_schedule).
         from datetime import date, timedelta
+
         today = date.today()
         # (weekday()+1)%7 gives days elapsed since last Sunday (0 if today is Sunday)
         days_since_sunday = (today.weekday() + 1) % 7
@@ -196,7 +218,8 @@ class Database:
         # Get today's task list from the stored week_schedule, then fetch full
         # task details + the parent goal name for each one.
         from datetime import date
-        today_name = _ALL_DAYS[(date.today().weekday() + 1) % 7]  # e.g. "monday"
+
+        today_name = _ALL_DAYS[(date.today().weekday()) % 7]  # e.g. "monday"
 
         row = self._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
@@ -214,15 +237,23 @@ class Database:
 
         # Fetch task details alongside the goal name in one query
         placeholders = ", ".join(["?"] * len(task_ids))
-        rows = self._run_param(f"""
+        rows = self._run_param(
+            f"""
             SELECT t.task_id, t.task, g.name AS goal_name
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE t.task_id IN ({placeholders})
-        """, task_ids).fetchall()
+        """,
+            task_ids,
+        ).fetchall()
 
         return [
-            {"task_id": r[0], "task": r[1], "goal_name": r[2], "completed": done_by_id.get(r[0], False)}
+            {
+                "task_id": r[0],
+                "task": r[1],
+                "goal_name": r[2],
+                "completed": done_by_id.get(r[0], False),
+            }
             for r in rows
         ]
 
@@ -235,14 +266,15 @@ class Database:
             return False
         schedule = json.loads(row[0])
         from datetime import date
-        today_name = _ALL_DAYS[(date.today().weekday() + 1) % 7]
+
+        today_name = _ALL_DAYS[(date.today().weekday()) % 7]
         for entry in schedule.get(today_name, []):
             if entry["task_id"] == task_id:
                 entry["completed"] = status
                 break
         self._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?",
-            (json.dumps(schedule), user_id)
+            (json.dumps(schedule), user_id),
         )
         self._commit()
         return True
@@ -288,7 +320,16 @@ if __name__ == "__main__":
     db = Database(create=True)
 
     db.insert(
-        "goals", ["run a 5k", "fitness", "completion", "testdate", "testdate2", "Rajt", "testdate"]
+        "goals",
+        [
+            "run a 5k",
+            "fitness",
+            "completion",
+            "testdate",
+            "testdate2",
+            "Rajt",
+            "testdate",
+        ],
     )
     print(db.select("goals", "all"))
     db.update("goals", 1, {"name": "run a 10k", "user_id": "RajtRuns"})
