@@ -40,7 +40,7 @@ struct GoalItem {
             if sat {
                 res.append("saturday")
             }
-            return res.joined(separator: ".")
+            return res.joined(separator: ",")
         }
     }
     enum Difficulty {

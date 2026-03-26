@@ -43,6 +43,8 @@ final class ApiCall {
             let task_id: Int
             let task: String
             let goal_name: String
+            //added
+            let completed: Bool
         }
         
         struct Res: Codable {
@@ -60,7 +62,7 @@ final class ApiCall {
             //test fallback
             //let res: Res = try await sendRequest("POST", body, "daily_goal_digest_broke")
             self.tasks = res.tasks.map {
-                TaskItem(id: $0.task_id, title: $0.task, isCompleted: false)
+                TaskItem(id: $0.task_id, title: $0.task, isCompleted: $0.completed)
             }
             
             self.taskGoalNames = [:]

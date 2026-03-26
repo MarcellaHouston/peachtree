@@ -167,6 +167,9 @@ struct TodayTasksView: View {
             if didLoadTasks {
                 tasks = ApiCall.shared.tasks
                 selectedTaskGoalName = ApiCall.shared.taskGoalNames
+                print("loaded tasks")
+                print(tasks)
+                print(selectedTaskGoalName)
             } else {
                 print("Using fallback tasks")
 
