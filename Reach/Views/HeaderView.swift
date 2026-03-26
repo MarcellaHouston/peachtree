@@ -13,7 +13,11 @@ import SwiftUI
 struct HeaderView: View {
     var body: some View {
         VStack(spacing: 0) {
+           
             HStack {
+                //commented out because simulator already has the status bar
+                
+                /*
                 Text("9:41")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.white)
@@ -33,7 +37,9 @@ struct HeaderView: View {
                     .font(.system(size: 20, weight: .regular))
                     .foregroundColor(.white)
                 }
+                 */
             }
+             
             //this top row acts like a custom phone status bar
             //the horizontal padding keeps the time and icons from touching the edges
             //the small top padding moves the row close to the top like the design
