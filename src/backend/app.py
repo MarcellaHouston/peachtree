@@ -211,6 +211,19 @@ def delete_goal():
     return "", 204
 
 
+@app.route("/goals/complete", methods=["POST"])
+def complete_task():
+    # Mark a task as done or not-done in the user's current week_schedule.
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    task_id = data.get("task_id")
+    status = data.get("status")
+    if not user_id or task_id is None or status is None:
+        return jsonify({"error": "Missing user_id, task_id, or status"}), 400
+    db.set_task_status(user_id, task_id, status)
+    return "", 204
+
+
 # ---------------------------------------------------------------------------
 # Weekly schedule
 # ---------------------------------------------------------------------------

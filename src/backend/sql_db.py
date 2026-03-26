@@ -99,7 +99,7 @@ class Database:
                 schedule = json.loads(sched_row[0])
                 for day in _ALL_DAYS:
                     if day in schedule:
-                        schedule[day] = [t for t in schedule[day] if t not in task_ids]
+                        schedule[day] = [e for e in schedule[day] if e["task_id"] not in task_ids]
                 self._run_param(
                     "UPDATE users SET week_schedule = ? WHERE username = ?",
                     (json.dumps(schedule), user_id)
@@ -147,15 +147,18 @@ class Database:
             step = max(1, n // freq)      # space out slots evenly across available days
             chosen = [avail_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
-                buckets[day].append(task_id)
+                buckets[day].append({"task_id": task_id, "completed": False})
             # Persist which days this task is assigned to
             self._run_param(
                 "UPDATE tasks SET days_of_week = ? WHERE task_id = ?",
                 (json.dumps(chosen), task_id)
             )
 
-        # Store the full schedule on the user row so the frontend can read it back
-        schedule = {"curr_week_start": this_sunday, **buckets}
+        # Store the full schedule on the user row so the frontend can read it back.
+        schedule = {
+            "curr_week_start": this_sunday,
+            **buckets,
+        }
         self._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?",
             (json.dumps(schedule), user_id)
@@ -201,9 +204,12 @@ class Database:
             return []
 
         schedule = json.loads(row[0])
-        task_ids = schedule.get(today_name, [])
-        if not task_ids:
+        entries = schedule.get(today_name, [])
+        if not entries:
             return []
+
+        task_ids = [e["task_id"] for e in entries]
+        done_by_id = {e["task_id"]: e["completed"] for e in entries}
 
         # Fetch task details alongside the goal name in one query
         placeholders = ", ".join(["?"] * len(task_ids))
@@ -214,7 +220,31 @@ class Database:
             WHERE t.task_id IN ({placeholders})
         """, task_ids).fetchall()
 
-        return [{"task_id": r[0], "task": r[1], "goal_name": r[2]} for r in rows]
+        return [
+            {"task_id": r[0], "task": r[1], "goal_name": r[2], "completed": done_by_id.get(r[0], False)}
+            for r in rows
+        ]
+
+    def set_task_status(self, user_id: str, task_id: int, status: bool) -> bool:
+        # Mark a task as done or not-done in the user's current week_schedule.
+        row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not row or not row[0]:
+            return False
+        schedule = json.loads(row[0])
+        from datetime import date
+        today_name = _ALL_DAYS[(date.today().weekday() + 1) % 7]
+        for entry in schedule.get(today_name, []):
+            if entry["task_id"] == task_id:
+                entry["completed"] = status
+                break
+        self._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(schedule), user_id)
+        )
+        self._commit()
+        return True
 
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
