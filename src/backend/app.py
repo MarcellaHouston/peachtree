@@ -57,9 +57,12 @@ def validate_goal(goal):
 
     return errors
 
+
 @app.route("/")
 def hello():
     return "Hello"
+
+
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
@@ -367,7 +370,9 @@ def save_convo():
         return jsonify({"error": "LLM was unable to get valid entries"}), 400
 
     # Store convo in chromadb with what the LLM returned
+    logger.info(f"Storing the following convo in chromadb for user:")
     for arg in json_convo_args:
+        logger.info(str(arg))
         chroma.store_talking_point(
             user_id=userid,
             document=arg.get("document"),
