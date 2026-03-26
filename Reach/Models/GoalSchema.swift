@@ -68,6 +68,10 @@ struct GoalSchema : Codable{
             res = res.sat()
         }
         
+        if isPaused {
+            res = res.pause()
+        }
+        
         return res.build()
     }
 }
