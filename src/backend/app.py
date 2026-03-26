@@ -356,16 +356,18 @@ def save_convo():
     data = request.get_json()
     userid = data.get("user_id")
     transcription = data.get("transcription")
+    logger.info("Transcription: " + transcription)
 
     if not userid or not transcription:
         return jsonify({"error": "Missing information"})
 
     # Initialize LLMClient
     llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
-
+    logger.info("Initialized LLM Client for talking points")
     # Query the LLM to get the entries for our conversation
     json_convo_args, valid, _ = llm_client.query(transcription)
-
+    logger.info(str(json_convo_args))
+    logger.info("Validity: "+str(valid))
     if not valid:
         return jsonify({"error": "LLM was unable to get valid entries"}), 400
 
