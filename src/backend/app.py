@@ -145,6 +145,9 @@ def create_goal():
     # active_date starts equal to start_date and can be pushed forward via snooze
     goal["active_date"] = goal["start_date"]
 
+    if goal.get("days_of_week")[-1] == ",":
+        goal["days_of_week"] = goal["days_of_week"][:-1]
+
     goal_id = db.insert(
         "goals",
         [
@@ -172,8 +175,11 @@ def create_goal():
     llm_model = LLMClient(LLMClient.UseCase.GENERATE_TASKS, user_id=goal["user_id"])
     tasks, valid, retries = llm_model.query(content=json.dumps(llm_payload))
 
+    logger.info("Starting task adds")
     if valid:
+        logger.info("is valid!")
         for task in tasks:
+            logger.info(task["task"])
             db.insert(
                 "tasks",
                 [
@@ -188,6 +194,7 @@ def create_goal():
                 ],
             )
     else:
+        logger.info("Error with LLM")
         return (
             jsonify({"error": "LLM failed to generate tasks", "retries": retries}),
             500,
@@ -304,7 +311,8 @@ def daily_goal_digest():
         "friday",
         "saturday",
         "sunday",
-    ][(date.today().weekday() + 1) % 7]
+    ][(date.today().weekday()) % 7]
+    db.check_new_week(user_id)
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
 
@@ -404,7 +412,7 @@ def save_convo():
     # Store convo in chromadb with what the LLM returned
     logger.info(f"Storing the following convo in chromadb for user:")
     for arg in json_convo_args:
-        logger.info(str(arg))
+        logger.info(arg.get("verbose_summary"))
         chroma.store_talking_point(
             user_id=userid,
             document=arg.get("document"),
@@ -412,6 +420,7 @@ def save_convo():
             static_trait=bool(arg.get("static_trait")),
             end_timestamp=int(arg.get("end_timestamp")),
         )
+    logger.info("done with chroma store")
 
     return "", 204
 
