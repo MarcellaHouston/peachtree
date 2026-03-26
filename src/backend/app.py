@@ -303,7 +303,6 @@ def eod_summary():
 
     # Transcribe the audio file
     transcription = ""
-    logger.info("1")
     try:
         with open(temp_path, "wb") as f:
             f.write(audio_file)
@@ -311,7 +310,6 @@ def eod_summary():
         # Upload to s3 and then transcribe
         aws.upload_to_s3(temp_path)
         transcription = aws.transcription_service(temp_path, clean_up=True)
-        logger.info("2")
         # Cleanup local file
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -344,7 +342,9 @@ def eod_summary():
 
     # Query the LLM with the transcription, which returns the summary
     summary = llm_model.query(content=transcription)
-    return jsonify({"summary": summary, "transcription": transcription})
+    logger.info(summary[0])
+    logger.info(transcription)
+    return jsonify({"summary": summary[0], "transcription": transcription})
 
 
 # Save convo to chromadb
