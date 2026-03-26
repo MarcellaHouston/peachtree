@@ -1,6 +1,7 @@
 import sqlite3 as sql
 import json
 import os
+from datetime import date, timedelta
 
 _ALL_DAYS = [
     "monday",
@@ -188,17 +189,20 @@ class Database:
         self._commit()
         return schedule
 
+    def this_sunday(self) -> str:
+        today = date.today()
+        # (weekday()+1)%7 gives days elapsed since last Sunday (0 if today is Sunday)
+        days_since_sunday = (today.weekday() + 1) % 7
+        this_sunday = (today - timedelta(days=days_since_sunday)).isoformat()
+        return this_sunday
+
     def check_new_week(self, user_id: str) -> tuple:
         # Called on app startup. Compares the most recent Sunday to the Sunday
         # stored in the user's week_schedule. If they differ it's a new week —
         # reassign tasks and return (True, new_schedule). If same week, return
         # the cached schedule without touching anything: (False, cached_schedule).
-        from datetime import date, timedelta
 
-        today = date.today()
-        # (weekday()+1)%7 gives days elapsed since last Sunday (0 if today is Sunday)
-        days_since_sunday = (today.weekday() + 1) % 7
-        this_sunday = (today - timedelta(days=days_since_sunday)).isoformat()
+        this_sunday = self.this_sunday()
 
         row = self._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
