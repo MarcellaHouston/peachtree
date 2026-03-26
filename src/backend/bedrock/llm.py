@@ -135,7 +135,7 @@ class LLMClient:
                 "document",
                 "verbose_summary",
                 "static_trait",
-                "end_timestamp",
+                "impact_days",
             ]
         elif use_case == self.UseCase.SUMMARIZE_TRANSCRIPTION:
             file_path = prompts / "summarize_transcription.txt"
@@ -156,12 +156,8 @@ class LLMClient:
     def context(self, content: str):
         self.model.add_to_context(content)
 
-    def query(self, content: str, max_retries=3):
+    def query(self, content: str, max_retries=5):
         retries = 0
-        if self.use_case == self.UseCase.GENERATE_TALKING_POINTS:
-            self.context(
-                "Time zone: EST. Current UNIX timestamp: " + str(int(time.time()))
-            )
         for _ in range(max_retries):
             valid = True
             response = self.model.query(
@@ -211,17 +207,30 @@ class LLMClient:
                             )
 
                         # validate timestamp
-                        end_timestamp = json_obj.get("end_timestamp")
-                        if end_timestamp is not None:
-                            end_timestamp = int(end_timestamp)
-                            if end_timestamp < int(time.time()):
-                                print(
-                                    f"Invalid end_timestamp: {end_timestamp} is in the past."
-                                )
-                                valid = False
-                                self.model.previous_conversation.append(
-                                    "Error: The previous response had an invalid end_timestamp that was in the past. Please provide a new response with a valid end_timestamp that is in the future."
-                                )
+                        try:
+                            impact_days = int(json_obj.get("impact_days"))
+                            end_timestamp = int(time.time()) + impact_days * 24 * 3600
+                            json_obj["end_timestamp"] = end_timestamp
+
+                        except Exception as e:
+                            print(e)
+                            print(
+                                f"Invalid impact_days value: {json_obj.get('impact_days')}. Must be a valid integer."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid impact_days value that was not an integer. Please provide a new response with impact_days between 3 and 80000."
+                            )
+                            continue
+
+                        if impact_days <= 2 or impact_days > 80000:
+                            print(
+                                f"Invalid impact_days value: {impact_days}. Must be between 3 and 80000."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid impact_days value. Please provide a new response with impact_days between 3 and 80000."
+                            )
 
             if valid:
                 self.model.flush()
