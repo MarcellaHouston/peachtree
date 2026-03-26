@@ -115,10 +115,6 @@ def get_goals():
     response = {"goals": results}
 
     user_id = data.get("user_id")
-    if user_id:
-        new_week, schedule = db.check_new_week(user_id)
-        response["new_week"] = new_week
-        response["schedule"] = schedule
 
     return jsonify(response)
 
