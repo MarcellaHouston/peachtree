@@ -36,6 +36,7 @@ class Database:
         print(cols)
         self._run_param(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", args)
         self._commit()
+        return self.cursor.lastrowid
 
     def update(self, table: str, row_id: int, updates: dict) -> bool:
         # Update specific columns on a row identified by its id.
