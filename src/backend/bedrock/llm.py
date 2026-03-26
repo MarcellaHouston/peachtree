@@ -158,6 +158,10 @@ class LLMClient:
 
     def query(self, content: str, max_retries=3):
         retries = 0
+        if self.use_case == self.UseCase.GENERATE_TALKING_POINTS:
+            self.context(
+                "Time zone: EST. Current UNIX timestamp: " + str(int(time.time()))
+            )
         for _ in range(max_retries):
             valid = True
             response = self.model.query(
