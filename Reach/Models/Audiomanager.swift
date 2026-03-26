@@ -140,55 +140,29 @@ class AudioManager: NSObject {
                     print("Upload failed: \(error.localizedDescription)")
                     return
                 }
-                /*
-                //------------------------------
-                if let httpResponse = response as? HTTPURLResponse {
-                                    print("🌐 Server responded with status: \(httpResponse.statusCode)")
-                                    
-                                    if httpResponse.statusCode == 200 {
-                                        print("✅ Success! Processing data...")
-                                        if let data = data {
-                                            do {
-                                                if let json = try JSONSerialization.jsonObject(with: data) as? [String: String] {
-                                                    DispatchQueue.main.async {
-                                                        self.summary = json["summary"] ?? "No summary available."
-                                                        print(self.summary)
-                                                        self.transcription = json["transcription"] ?? ""
-                                                        print(self.transcription)
-                                                        self.showReview = true
-                                                    }
-                                                }
-                                            } catch {
-                                                print("JSON decoding failed: \(error)")
-                                            }
-                                        }
-                                    } else if httpResponse.statusCode == 502 {
-                                        print("⚠️ 502 ERROR: The 'Gate' is open but the 'Backend' is asleep.")
-                                    } else {
-                                        print("❓ Unexpected Error Code: \(httpResponse.statusCode)")
-                                    }
-                                }
-                                // ---------------------------------------------------
-                */
                 
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
                     print("Server responded with status: 200")
                     
                     
-                    
                     do {
                         // Decode JSON response from the backend
-                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: String] {
+                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                             
                             // update ui variables
                             DispatchQueue.main.async {
-                                self.summary = json["summary"] ?? "No summary available."
-                                self.transcription = json["transcription"] ?? ""
+                                self.summary = "\(json["summary"] ?? "No summary available.")"
+                                self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                                 //  screen swap in ui
                                 self.showReview = true
                                 
                             }
                         }
+                        else
+                        {
+                            print("oh no")
+                        }
+                        
                     } catch {
                         print("JSON decoding failed: \(error)")
                     }
@@ -205,17 +179,39 @@ class AudioManager: NSObject {
     
     // save function so back end saves it after user presses "looks good"
     
-        func saveConversation() {
-            guard let url = URL(string: "http://\(backendIP):80/stt/save_convo") else { return }
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("Reach staff", forHTTPHeaderField: "User-ID")
+    func saveConversation() {
+        guard let url = URL(string: "http://\(backendIP):80/stt/save_convo") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        
+        // sending json
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // create data dictionary based on python variables
+        let body: [String: Any] = [
+            "user_id": "Reach staff",
+            "transcription": self.transcription
+        ]
+        
+        // convert to json data
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = jsonData
             
-            // todo
-            URLSession.shared.dataTask(with: request).resume()
-            
-            // Reset for next time
-            self.showReview = false
+            print("Saving conversation for user: Reach staff")
+        } catch {
+            print("Failed to encode JSON: \(error)")
+            return
         }
-    
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let httpResponse = response as? HTTPURLResponse {
+                print("Save status: \(httpResponse.statusCode)")
+            }
+        }.resume()
+        
+        // Reset UI state to go back to original screen
+        self.showReview = false
+    }
 }
