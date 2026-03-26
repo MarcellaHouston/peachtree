@@ -117,12 +117,18 @@ class LLMClient:
     def __init__(
         self,
         use_case: UseCase,
-        model_strength=1,
         max_tokens=4096,
         user_id: str = "Reach staff",
     ):
         self.use_case = use_case
         self.user_id = user_id
+
+        model_strength = {
+            self.UseCase.GENERATE_TASKS: 3,
+            self.UseCase.GENERATE_TALKING_POINTS: 3,
+            self.UseCase.SUMMARIZE_TRANSCRIPTION: 2,
+        }[self.use_case]
+
         prompts = Path(__file__).parent / "prompts"
         if use_case == self.UseCase.GENERATE_TASKS:
             file_path = prompts / "generate_tasks.txt"
