@@ -104,7 +104,7 @@ class AudioManager: NSObject {
                 self.isUploading = true
             }
             
-            // 2. Start the actual network request
+            //start the actual network request
             self.uploadAudio(fileURL: fileURL)
         }
     
@@ -128,9 +128,9 @@ class AudioManager: NSObject {
         
         do {
             let audioData = try Data(contentsOf: fileURL)
-            print("reached endpoint")
+            //print("reached endpoint")
             request.httpBody = audioData
-            print(audioData)
+            //print(audioData)
             
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
                 // Stop loading state regardless of outcome
@@ -142,8 +142,8 @@ class AudioManager: NSObject {
                 }
                 
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
-                    print("Server responded with status: 200")
-                    
+                    print("Upload status: 200")
+
                     
                     do {
                         // Decode JSON response from the backend
@@ -158,9 +158,10 @@ class AudioManager: NSObject {
                                 
                             }
                         }
+                        //test to make sure the above if branch was working
                         else
                         {
-                            print("oh no")
+                            //print("oh no")
                         }
                         
                     } catch {
@@ -199,7 +200,7 @@ class AudioManager: NSObject {
             let jsonData = try JSONSerialization.data(withJSONObject: body)
             request.httpBody = jsonData
             
-            print("Saving conversation for user: Reach staff")
+            //print("Saving conversation for user: Reach staff")
         } catch {
             print("Failed to encode JSON: \(error)")
             return
