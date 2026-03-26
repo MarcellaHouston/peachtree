@@ -6,7 +6,7 @@ import transcription.aws as aws
 import chromaDB.chroma_db as chroma
 import os
 import uuid
-from werkzeug.utils import secure_filename
+import json
 
 import logging
 
@@ -139,13 +139,13 @@ def create_goal():
 
     if not goal.get("start_date"):
         goal["start_date"] = date.today().isoformat()
-
-    goal["start_date"] = parse_date(goal["start_date"]).isoformat()
+    else:
+        goal["start_date"] = parse_date(goal["start_date"]).isoformat()
     goal["end_date"] = parse_date(goal["end_date"]).isoformat()
     # active_date starts equal to start_date and can be pushed forward via snooze
     goal["active_date"] = goal["start_date"]
 
-    db.insert(
+    goal_id = db.insert(
         "goals",
         [
             goal["name"],
@@ -161,6 +161,37 @@ def create_goal():
         ],
     )
 
+    llm_payload = {
+        "goal_name": goal["name"],
+        "start_date": goal["start_date"],
+        "end_date": goal["end_date"],
+        "difficulty": goal["difficulty"],
+        "days_of_week": goal.get("days_of_week"),
+    }
+
+    llm_model = LLMClient(LLMClient.UseCase.GENERATE_TASKS, user_id=goal["user_id"])
+    tasks, valid, retries = llm_model.query(content=json.dumps(llm_payload))
+
+    if valid:
+        for task in tasks:
+            db.insert(
+                "tasks",
+                [
+                    goal_id,
+                    task["task"],
+                    task["weekly_frequency"],
+                    task["weight"],
+                    task["days_of_week"],
+                    task["start_date"],
+                    task["end_date"],
+                    task["impetus"],
+                ],
+            )
+    else:
+        return (
+            jsonify({"error": "LLM failed to generate tasks", "retries": retries}),
+            500,
+        )
     return "", 204
 
 
@@ -189,7 +220,6 @@ def update_goal():
         updates["start_date"] = parse_date(updates["start_date"]).isoformat()
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
-    # The API uses "user" but the DB column is "user_id" — remap it here
     if "user_id" in updates:
         updates["user_id"] = updates.pop("user_id")
 
