@@ -8,7 +8,7 @@ Run from the src/backend directory:
 import json
 from sql_db import Database
 
-db = Database(create=True)
+db = Database(create=False)
 
 # ---------------------------------------------------------------------------
 # User

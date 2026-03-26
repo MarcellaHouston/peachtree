@@ -8,6 +8,12 @@ import os
 import uuid
 from werkzeug.utils import secure_filename
 
+import logging
+
+# Set up logging to output to stdout/stderr
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 
 # Single shared database connection for all requests.
@@ -51,7 +57,9 @@ def validate_goal(goal):
 
     return errors
 
-
+@app.route("/")
+def hello():
+    return "Hello"
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
@@ -277,25 +285,25 @@ def daily_goal_digest():
 def eod_summary():
     """Given a transcription from a user's STT, return a LLM-generated summary"""
     # Grab metadata from user
+    logger.info("🚀 Reached the EOD Summary endpoint")
     userid = request.headers.get("User-ID")
     file_type = request.headers.get("File-Type", ".m4a")
     audio_file = request.data
-
     if not userid:
-        return jsonify({"error": "Missing User-ID in header"}), 400
+        return jsonify({"error": "Missing User-ID in header"}), 401
 
     if not file_type:
-        return jsonify({"error": "Missing File Type in header"}), 400
+        return jsonify({"error": "Missing File Type in header"}), 402
 
     if not audio_file:
-        return jsonify({"error": "Missing Audio File"}), 400
-
+        return jsonify({"error": "Missing Audio File"}), 403
     # Create temporary audio filename and path for transcription
     temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
     temp_path = os.path.join("/tmp", temp_filename)
 
     # Transcribe the audio file
     transcription = ""
+    logger.info("1")
     try:
         with open(temp_path, "wb") as f:
             f.write(audio_file)
@@ -303,12 +311,13 @@ def eod_summary():
         # Upload to s3 and then transcribe
         aws.upload_to_s3(temp_path)
         transcription = aws.transcription_service(temp_path, clean_up=True)
-
+        logger.info("2")
         # Cleanup local file
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
     except Exception as e:
+        logger.info(e)
         return jsonify({"error": str(e)}), 500
     finally:
         # Final cleanup if something goes wrong

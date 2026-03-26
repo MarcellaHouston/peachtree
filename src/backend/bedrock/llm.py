@@ -1,5 +1,5 @@
 import boto3
-import backend.chromaDB.chroma_db as chroma
+import chromaDB.chroma_db as chroma
 from enum import Enum
 from pathlib import Path
 from json import loads
