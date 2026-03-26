@@ -305,6 +305,23 @@ class LLMClient:
                                 "Error: The previous response had an invalid impetus value. Please provide a new response with impetus as an integer between 1 and 5."
                             )
 
+                        # validate weekly_frequency is between 1 and length of days_of_week
+                        weekly_frequency = json_obj["weekly_frequency"]
+                        if (
+                            not isinstance(weekly_frequency, int)
+                            or weekly_frequency < 1
+                            or weekly_frequency > len(days_of_week)
+                        ):
+                            print(
+                                f"Invalid weekly_frequency value: {weekly_frequency}. Must be an integer between 1 and the number of days in days_of_week ({len(days_of_week)})."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid weekly_frequency value. Please provide a new response with weekly_frequency as an integer between 1 and the number of days in days_of_week ("
+                                + str(len(days_of_week))
+                                + ")."
+                            )
+
                 case self.UseCase.GENERATE_TALKING_POINTS:
                     output = json_response
                     for json_obj in json_response:
