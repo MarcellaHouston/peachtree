@@ -12,8 +12,6 @@ import SwiftUI
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
     @Binding var selectedTab: AppTab
-    //Backend TaskItem retrieval
-    @State private var tasks: [TaskItem] = []
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
     @State private var selectedTaskGoalName: [Int: String] = [:]
@@ -62,16 +60,16 @@ struct TodayTasksView: View {
     //this property counts how many tasks are currently completed
     //it filters the task list and returns the number of tasks marked as done
     private var completedTaskCount: Int {
-        tasks.filter { $0.isCompleted }.count
+        ApiCall.shared.tasks.filter { $0.isCompleted }.count
     }
 
     //this gives the filled width for the progress bar
     private var progressWidth: CGFloat {
-        if tasks.isEmpty {
+        if ApiCall.shared.tasks.isEmpty {
             return 0
         }
 
-        return 250 * CGFloat(completedTaskCount) / CGFloat(tasks.count)
+        return 250 * CGFloat(completedTaskCount) / CGFloat(ApiCall.shared.tasks.count)
     }
 
     var body: some View {
@@ -96,12 +94,11 @@ struct TodayTasksView: View {
                 //only this section scrolls so the progress area stays in place
                 ScrollView(showsIndicators: true) {
                     VStack(spacing: 26) {
-                        ForEach($tasks) { $task in
-                            TodayTaskRow(task: $task, onTaskTap: {
+                        ForEach(ApiCall.shared.tasks) { task in
+                            TodayTaskRow(task: task, onTaskTap: {
                                 if let goalName = selectedTaskGoalName[task.id] {
                                     if let matchedGoal =
-                                        ApiCall.shared.goals.first(where: { $0.title == goalName }) ??
-                                        FallbackData.fallbackGoals.first(where: { $0.title == goalName }) {
+                                        ApiCall.shared.goals.first(where: { $0.title == goalName }) {
 
                                         selectedGoal = matchedGoal
                                         showEditGoal = true
@@ -118,7 +115,7 @@ struct TodayTasksView: View {
                 //progress section that shows how many tasks have been completed
                 //includes a text summary and a visual progress bar
                 VStack(spacing: 8) {
-                    Text("\(completedTaskCount)/\(tasks.count) tasks completed")
+                    Text("\(completedTaskCount)/\(ApiCall.shared.tasks.count) tasks completed")
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(.black)
                     
@@ -164,18 +161,6 @@ struct TodayTasksView: View {
             await ApiCall.shared.refreshGoals()
             let didLoadTasks = await ApiCall.shared.refreshTasks()
 
-            if didLoadTasks {
-                tasks = ApiCall.shared.tasks
-                selectedTaskGoalName = ApiCall.shared.taskGoalNames
-                print("loaded tasks")
-                print(tasks)
-                print(selectedTaskGoalName)
-            } else {
-                print("Using fallback tasks")
-
-                tasks = FallbackData.fallbackTasks
-                selectedTaskGoalName = FallbackData.fallbackTaskGoalNames
-            }
             //REMOVE ONLY FOR DEBUGGING
             //print("=== TASKS IN VIEW ===")
             //for task in tasks {
@@ -204,7 +189,7 @@ struct TodayTasksView: View {
 //this helper builds one task row
 //the square on the left toggles the task and the purple button shows the task text
 private struct TodayTaskRow: View {
-    @Binding var task: TaskItem
+    var task: TaskItem
     let onTaskTap: () -> Void
 
     var body: some View {
@@ -212,7 +197,9 @@ private struct TodayTaskRow: View {
             //checkbox button on the left
             //tapping it toggles whether the task is completed
             Button {
-                task.isCompleted.toggle()
+                Task {
+                    await ApiCall.shared.toggleTask(task: task)
+                }
             } label: {
                 Rectangle()
                     .fill(task.isCompleted ? Color(red: 0.42, green: 0.33, blue: 0.72) : Color.white)

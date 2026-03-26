@@ -53,7 +53,7 @@ final class ApiCall {
         }
         
         let body: [String: Any] = [
-            "user_id": "Reach Staff"
+            "user_id": "Reach staff"
         ]
         
         do {
@@ -157,6 +157,21 @@ final class ApiCall {
             let _: Empty = try await sendRequest("POST", body, "tasks/update")
         } catch {
             print("updateTask ERROR:")
+            print(error)
+        }
+        await refreshTasks()
+    }
+    func toggleTask(task: TaskItem) async {
+        let body: [String:Any] = [
+            "user_id": "Reach staff",
+            "task_id": task.id,
+            "status": !task.isCompleted
+        ]
+        
+        do {
+            let _: Empty = try await sendRequest("POST", body, "tasks/complete")
+        } catch {
+            print("toggleTask ERROR:")
             print(error)
         }
         await refreshTasks()
