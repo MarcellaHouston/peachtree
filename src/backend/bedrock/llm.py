@@ -120,9 +120,12 @@ class LLMClient:
         model_strength=1,
         max_tokens=4096,
         user_id: str = "Reach staff",
+        sql_db=None,
     ):
         self.use_case = use_case
         self.user_id = user_id
+        self.sql_db = sql_db
+
         prompts = Path(__file__).parent / "prompts"
         if use_case == self.UseCase.GENERATE_TASKS:
             file_path = prompts / "generate_tasks.txt"
@@ -162,6 +165,22 @@ class LLMClient:
             self.context(
                 "Time zone: EST. Current UNIX timestamp: " + str(int(time.time()))
             )
+
+        if self.use_case in [
+            self.UseCase.SUMMARIZE_TRANSCRIPTION,
+            self.UseCase.GENERATE_TALKING_POINTS,
+        ]:
+            # Get user's daily tasks
+            tasks = self.sql_db.get_daily_tasks(self.user_id)
+
+            # Add daily tasks to the LLM's context
+            daily_tasks = [
+                f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n"
+                for t in tasks
+            ]
+            formatted_tasks = "Today's Tasks:\n" + "\n".join(daily_tasks)
+            self.model.context(formatted_tasks)
+
         for _ in range(max_retries):
             valid = True
             response = self.model.query(

@@ -307,18 +307,8 @@ def eod_summary():
 
     # Setup LLM with eod_summary instructions
     llm_model = LLMClient(
-        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid, sql_db=db
     )
-
-    # Get user's daily tasks
-    tasks = db.get_daily_tasks(userid)
-
-    # Add daily tasks to the LLM's context
-    daily_tasks = [
-        f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
-    ]
-    formatted_tasks = "Today's Tasks:\n" + " ".join(daily_tasks)
-    llm_model.context(formatted_tasks)
 
     # Query the LLM with the transcription, which returns the summary
     summary = llm_model.query(content=transcription)
@@ -336,7 +326,9 @@ def save_convo():
         return jsonify({"error": "Missing information"})
 
     # Initialize LLMClient
-    llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
+    llm_client = LLMClient(
+        use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS, user_id=userid, sql_db=db
+    )
 
     # Query the LLM to get the entries for our conversation
     json_convo_args, valid, _ = llm_client.query(transcription)
