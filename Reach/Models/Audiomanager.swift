@@ -99,7 +99,7 @@ class AudioManager: NSObject {
         }
     
     func startUpload(fileURL: URL) {
-            // 1. Immediately tell the UI to show "Analyzing..."
+           //show analyzing
             DispatchQueue.main.async {
                 self.isUploading = true
             }
@@ -120,66 +120,83 @@ class AudioManager: NSObject {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 120.0
+        request.timeoutInterval = 1000
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        
         request.setValue("Reach staff", forHTTPHeaderField: "User-ID")
         request.setValue(".m4a", forHTTPHeaderField: "File-Type")
         
         do {
             let audioData = try Data(contentsOf: fileURL)
+            print("reached endpoint")
             request.httpBody = audioData
+            print(audioData)
             
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
                 // Stop loading state regardless of outcome
                 DispatchQueue.main.async { self.isUploading = false }
-
+                
                 if let error = error {
-                    print("Upload failed (network): \(error.localizedDescription)")
+                    print("Upload failed: \(error.localizedDescription)")
                     return
                 }
-
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    print("No HTTPURLResponse received")
-                    return
-                }
-
-                let status = httpResponse.statusCode
-                let headers = httpResponse.allHeaderFields
-                let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
-
-                print("🌐 Status: \(status)")
-                print("📬 Headers: \(headers)")
-                print("📝 Body: \(bodyString)")
-
-                // Early-exit on non-200 with server-provided details already printed
-                guard status == 200 else {
-                    if status == 502 {
-                        print("⚠️ 502 ERROR: The 'Gate' is open but the 'Backend' is asleep.")
-                    } else if status >= 500 {
-                        print("🚨 Server error (\(status)). Check server logs for stack trace.")
-                    } else {
-                        print("❓ Unexpected status code: \(status)")
-                    }
-                    return
-                }
-
-                // Handle success (200)
-                do {
-                    if let data = data,
-                       let json = try JSONSerialization.jsonObject(with: data) as? [String: String] {
-                        DispatchQueue.main.async {
-                            self.summary = json["summary"] ?? "No summary available."
-                            self.transcription = json["transcription"] ?? ""
-                            self.showReview = true
+                /*
+                //------------------------------
+                if let httpResponse = response as? HTTPURLResponse {
+                                    print("🌐 Server responded with status: \(httpResponse.statusCode)")
+                                    
+                                    if httpResponse.statusCode == 200 {
+                                        print("✅ Success! Processing data...")
+                                        if let data = data {
+                                            do {
+                                                if let json = try JSONSerialization.jsonObject(with: data) as? [String: String] {
+                                                    DispatchQueue.main.async {
+                                                        self.summary = json["summary"] ?? "No summary available."
+                                                        print(self.summary)
+                                                        self.transcription = json["transcription"] ?? ""
+                                                        print(self.transcription)
+                                                        self.showReview = true
+                                                    }
+                                                }
+                                            } catch {
+                                                print("JSON decoding failed: \(error)")
+                                            }
+                                        }
+                                    } else if httpResponse.statusCode == 502 {
+                                        print("⚠️ 502 ERROR: The 'Gate' is open but the 'Backend' is asleep.")
+                                    } else {
+                                        print("❓ Unexpected Error Code: \(httpResponse.statusCode)")
+                                    }
+                                }
+                                // ---------------------------------------------------
+                */
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
+                    print("Server responded with status: 200")
+                    
+                    
+                    
+                    do {
+                        // Decode JSON response from the backend
+                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: String] {
+                            
+                            // update ui variables
+                            DispatchQueue.main.async {
+                                self.summary = json["summary"] ?? "No summary available."
+                                self.transcription = json["transcription"] ?? ""
+                                //  screen swap in ui
+                                self.showReview = true
+                                
+                            }
                         }
-                    } else {
-                        print("No data or invalid JSON structure")
+                    } catch {
+                        print("JSON decoding failed: \(error)")
                     }
-                } catch {
-                    print("JSON decoding failed: \(error)")
                 }
             }
+            
             task.resume()
+            
         } catch {
             print("Could not read audio file: \(error)")
             DispatchQueue.main.async { self.isUploading = false }
