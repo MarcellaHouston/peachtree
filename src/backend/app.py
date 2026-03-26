@@ -114,8 +114,6 @@ def get_goals():
 
     response = {"goals": results}
 
-    user_id = data.get("user_id")
-
     return jsonify(response)
 
 
@@ -307,7 +305,7 @@ def daily_goal_digest():
         "friday",
         "saturday",
         "sunday",
-    ][(date.today().weekday()) + 1 % 7]
+    ][(date.today().weekday()) % 7]
     db.check_new_week(user_id)
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
