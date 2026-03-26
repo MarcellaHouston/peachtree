@@ -4,16 +4,15 @@ import pytest
 from unittest.mock import MagicMock
 
 # 1. Ensure the project root is in the path
-# If you are in /home/aidanbel/peachtree/src, this adds 'src' to the path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-# 2. Mock ChromaDB so it doesn't try to initialize local databases during our AWS test
-# We mock both potential naming conventions to be safe, matching the import in llm.py
+# 2. Mock ChromaDB so it doesn't try to initialize local databases during AWS test
+# Mock both potential naming conventions to be safe, matching the import in llm.py
 mock_chroma = MagicMock()
 sys.modules['backend.chromaDB'] = mock_chroma
 sys.modules['backend.chromaDB.chroma_db'] = mock_chroma
 
-# 3. Import your modules
+# 3. Import modules
 try:
     from backend.transcription import aws
     from backend.bedrock.llm import LLMClient
@@ -23,8 +22,6 @@ except ImportError as e:
     raise
 
 # --- TEST CONFIGURATION ---
-# IMPORTANT: Place a real audio file of someone speaking in the tests/ directory
-# name it 'sample_audio.m4a' (common iPhone format) or change the filename below.
 TEST_AUDIO_FILE = os.path.join(os.path.dirname(__file__), 'sample_audio.m4a')
 
 
@@ -35,7 +32,7 @@ def test_live_transcription_and_llm_summary():
     It uploads to S3, runs Transcribe, and queries Bedrock.
     """
     if not os.path.exists(TEST_AUDIO_FILE):
-        pytest.skip(f"🛑 Skipping test: Please place a real audio file at {TEST_AUDIO_FILE} to run the AWS integration test.")
+        pytest.skip(f" Skipping test: Please place a real audio file at {TEST_AUDIO_FILE} to run the AWS integration test.")
 
     print("\n" + "="*50)
     print("🚀 STARTING LIVE AWS PIPELINE TEST")
@@ -47,7 +44,7 @@ def test_live_transcription_and_llm_summary():
     print(f"\n[1/3] Uploading {os.path.basename(TEST_AUDIO_FILE)} to AWS S3 bucket: {aws.BUCKET_NAME}...")
     try:
         aws.upload_to_s3(TEST_AUDIO_FILE)
-        print("✅ Upload successful.")
+        print(" Upload successful.")
     except Exception as e:
         pytest.fail(f"S3 Upload failed: {e}")
 
@@ -58,7 +55,7 @@ def test_live_transcription_and_llm_summary():
     except Exception as e:
         pytest.fail(f"AWS Transcribe failed: {e}")
 
-    print("\n" + "🎤 "*20)
+    print("\n" + " "*20)
     print("RAW TRANSCRIPTION FROM AWS:")
     print("-" * 40)
     print(transcription)
@@ -76,7 +73,7 @@ def test_live_transcription_and_llm_summary():
         user_id="integration_test_user"
     )
 
-    # Injecting fake tasks to mimic your db.get_daily_tasks(userid) logic
+    # Injecting fake tasks to mimic db.get_daily_tasks(userid) logic
     mock_tasks = [
         {"task": "Finish backend tests", "goal_name": "Launch MVP"},
         {"task": "Go for a 30 min run", "goal_name": "Health & Fitness"}
@@ -98,7 +95,7 @@ def test_live_transcription_and_llm_summary():
     except Exception as e:
         pytest.fail(f"AWS Bedrock query failed: {e}")
 
-    print("\n" + "🤖 "*20)
+    print("\n" + " "*20)
     print("FINAL SUMMARY FROM BEDROCK LLM:")
     print("-" * 40)
     print(summary_result)
@@ -109,7 +106,7 @@ def test_live_transcription_and_llm_summary():
     assert summary_result is not None
     assert len(summary_result) > 0
 
-    print("\n✅ LIVE AWS INTEGRATION TEST COMPLETED SUCCESSFULLY!")
+    print("\n LIVE AWS INTEGRATION TEST COMPLETED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     pytest.main(["-s", __file__])

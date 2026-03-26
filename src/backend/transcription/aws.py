@@ -1,4 +1,4 @@
-# AWS Service libraries (transcription, uploading .mp3 files to AWS)
+# AWS Service libraries (transcription, uploading audio files to AWS)
 import os
 import time
 import boto3
@@ -14,7 +14,7 @@ class TranscriptionFailure(Exception):
     pass
 
 
-# allowed audio file formats, iPhones use m4a or wav, mp3 is used for testing
+# allowed audio file formats, iPhones use .m4a, .wav and .mp3 is used for testing
 AUDIO_FORMATS = [".mp3", ".wav", ".m4a"]
 
 # Our bucket name on AWS s3
@@ -99,8 +99,6 @@ def transcription_service(filename: str, clean_up=False) -> str:
         url = status['TranscriptionJob']['Transcript']['TranscriptFileUri']
         transcript_json = requests.get(url).json()
         text = transcript_json['results']['transcripts'][0]['transcript']
-        #print("\nEnglish Transcription is:\n")
-        #print(text)
     else:
         # If transcription failed, throw an error
         raise TranscriptionFailure("Transcription failed.")
