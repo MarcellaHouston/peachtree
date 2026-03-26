@@ -222,7 +222,7 @@ def delete_goal():
     return "", 204
 
 
-@app.route("/goals/complete", methods=["POST"])
+@app.route("/tasks/complete", methods=["POST"])
 def complete_task():
     # Mark a task as done or not-done in the user's current week_schedule.
     data = request.get_json(silent=True) or {}
@@ -367,7 +367,7 @@ def save_convo():
     # Query the LLM to get the entries for our conversation
     json_convo_args, valid, _ = llm_client.query(transcription)
     logger.info(str(json_convo_args))
-    logger.info("Validity: "+str(valid))
+    logger.info("Validity: " + str(valid))
     if not valid:
         return jsonify({"error": "LLM was unable to get valid entries"}), 400
 
