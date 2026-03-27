@@ -7,22 +7,6 @@
 
 import SwiftUI
 
-struct GoalGuidanceBar: View {
-    let prompt: String
-    let clickHandler: () -> Void
-    
-    var body: some View {
-        HStack {
-            Circle()
-                .frame(width: 34)
-            Text(prompt)
-        }
-        .onTapGesture {
-            clickHandler()
-        }
-    }
-}
-
 struct GoalOptions: View {
     @Binding var goal: GoalItem
     
