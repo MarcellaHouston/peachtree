@@ -53,7 +53,7 @@ final class ApiCall {
         }
         
         let body: [String: Any] = [
-            "user_id": "Reach staff"
+            "user_id": STAFF_USER_ID
         ]
         
         do {
@@ -163,7 +163,7 @@ final class ApiCall {
     }
     func toggleTask(task: TaskItem) async {
         let body: [String:Any] = [
-            "user_id": "Reach staff",
+            "user_id": STAFF_USER_ID,
             "task_id": task.id,
             "status": !task.isCompleted
         ]

@@ -63,9 +63,9 @@ struct GoalItem {
             "goal": [
                 "name": title,
                 "measurable": "completion",
-                "end_date": "2999-01-01",
-                "category": "EMPTY_CATEGORY",
-                "user_id": "Reach staff",// TODO: Unhardcode the user
+                "end_date": NO_DUE,
+                "category": NO_CATEGORY,
+                "user_id": STAFF_USER_ID,// TODO: Unhardcode the user
                 "difficulty": "easy",
                 "days_of_week": repeatDays.toString()
             ]
