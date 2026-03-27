@@ -24,7 +24,7 @@ class Database:
                 self._run(f"DROP TABLE IF EXISTS {table};")
                 self._run(f"CREATE TABLE {table} ({colstring});")
 
-    def insert(self, table: str, args: list):
+    def insert(self, table: str, args: list) -> None:
         # Insert a new row into the given table. args must be ordered to match
         # the schema columns (excluding id, which is auto-assigned).
         assert table in self.schema
@@ -246,13 +246,13 @@ class Database:
         self._commit()
         return True
 
-    def delete(self, table: str, id: int):
+    def delete(self, table: str, id: int) -> None:
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
         assert table in self.schema
         self._run_param(f"DELETE FROM {table} WHERE id = ?", (id,))
         self._commit()
 
-    def select(self, table: str, where: str):
+    def select(self, table: str, where: str) -> list[tuple]:
         # Fetch rows from a table. Currently only supports "all" — returns every row.
         assert table in self.schema
         cursor = None

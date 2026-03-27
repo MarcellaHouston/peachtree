@@ -3,6 +3,7 @@ import chromaDB.chroma_db as chroma
 from enum import Enum
 from pathlib import Path
 from json import loads
+from typing import tuple
 import time
 
 
@@ -12,7 +13,7 @@ class _LLM:
         model_strength=1,
         max_tokens=1024,
         instructions="You are a social accountability app that helps users with their goals.",
-    ):
+    ) -> None:
         self.client = boto3.client("bedrock-runtime", region_name="us-east-2")
         self.system_instructions = instructions
         self.context = []
@@ -27,11 +28,11 @@ class _LLM:
         }
         self.model_id = strength_map.get(model_strength, strength_map[1])
 
-    def add_to_context(self, content):
+    def add_to_context(self, content) -> None:
         """Appends new info to the local context list."""
         self.context.append(content)
 
-    def query(self, content: str, user_id: str, rag: bool, flush=True):
+    def query(self, content: str, user_id: str, rag: bool, flush=True) -> str:
         """
         Queries the AI model through AWS Bedrock
 
@@ -86,7 +87,7 @@ class _LLM:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    def flush(self):
+    def flush(self) -> None:
         self.context = []
         self.previous_conversation = []
 
@@ -120,7 +121,7 @@ class LLMClient:
         model_strength=1,
         max_tokens=4096,
         user_id: str = "Reach staff",
-    ):
+    ) -> None:
         self.use_case = use_case
         self.user_id = user_id
         prompts = Path(__file__).parent / "prompts"
@@ -153,10 +154,10 @@ class LLMClient:
             max_tokens=max_tokens,
         )
 
-    def context(self, content: str):
+    def context(self, content: str) -> None:
         self.model.add_to_context(content)
 
-    def query(self, content: str, max_retries=3):
+    def query(self, content: str, max_retries=3) -> tuple[str, bool, int]:
         retries = 0
         if self.use_case == self.UseCase.GENERATE_TALKING_POINTS:
             self.context(
