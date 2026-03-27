@@ -32,7 +32,9 @@ class _LLM:
         """Appends new info to the local context list."""
         self.context.append(content)
 
-    def query(self, content: str, user_id: str, rag: bool, flush=True) -> str:
+    def query(
+        self, content: str, user_id: str, rag: bool, flush=True, rag_query: str = ""
+    ):
         """
         Queries the AI model through AWS Bedrock
 
@@ -49,7 +51,7 @@ class _LLM:
 
         # Add RAG-relevant docs to context if rag is set to true
         if rag:
-            self.rag_retrieval(query=content, userid=user_id)
+            self.rag_retrieval(query=rag_query, userid=user_id)
 
         # Construct message using user-input (content) along with past context if available
         if self.context:
@@ -98,9 +100,10 @@ class _LLM:
         )
 
         metadata = results["metadatas"]
+        vs = [meta["verbose_summary"] for meta in metadata]
 
-        nonstatic_summaries = metadata[:nonstatic]
-        static_summaries = metadata[nonstatic:]
+        nonstatic_summaries = vs[:nonstatic]
+        static_summaries = vs[nonstatic:]
 
         self.add_to_context("Current User Context")
         self.add_to_context("\n".join(nonstatic_summaries))
@@ -118,17 +121,32 @@ class LLMClient:
     def __init__(
         self,
         use_case: UseCase,
-        model_strength=1,
         max_tokens=4096,
         user_id: str = "Reach staff",
     ) -> None:
         self.use_case = use_case
         self.user_id = user_id
+
+        model_strength = {
+            self.UseCase.GENERATE_TASKS: 3,
+            self.UseCase.GENERATE_TALKING_POINTS: 3,
+            self.UseCase.SUMMARIZE_TRANSCRIPTION: 2,
+        }[self.use_case]
+
         prompts = Path(__file__).parent / "prompts"
         if use_case == self.UseCase.GENERATE_TASKS:
             file_path = prompts / "generate_tasks.txt"
             self.rag = True
-            self.schema = [""]
+            self.schema = [
+                "task",
+                "reasoning",
+                "weekly_frequency",
+                "weight",
+                "days_of_week",
+                "start_date",
+                "end_date",
+                "impetus",
+            ]
         elif use_case == self.UseCase.GENERATE_TALKING_POINTS:
             file_path = prompts / "generate_talking_points.txt"
             self.rag = False
@@ -136,7 +154,7 @@ class LLMClient:
                 "document",
                 "verbose_summary",
                 "static_trait",
-                "end_timestamp",
+                "impact_days",
             ]
         elif use_case == self.UseCase.SUMMARIZE_TRANSCRIPTION:
             file_path = prompts / "summarize_transcription.txt"
@@ -157,17 +175,29 @@ class LLMClient:
     def context(self, content: str) -> None:
         self.model.add_to_context(content)
 
-    def query(self, content: str, max_retries=3) -> tuple[str, bool, int]:
+    def query(self, content: str, max_retries=3):
         retries = 0
-        if self.use_case == self.UseCase.GENERATE_TALKING_POINTS:
-            self.context(
-                "Time zone: EST. Current UNIX timestamp: " + str(int(time.time()))
-            )
+        # add today's date in yyyy-mm-dd format to the context
+        if self.use_case in [
+            self.UseCase.GENERATE_TASKS,
+            self.UseCase.GENERATE_TALKING_POINTS,
+        ]:
+            self.context("Today's date: " + time.strftime("%Y-%m-%d"))
         for _ in range(max_retries):
             valid = True
+            rag_query = ""
+            if self.use_case == self.UseCase.GENERATE_TASKS:
+                rag_query = loads(content).get("goal_name")
             response = self.model.query(
-                content=content, user_id=self.user_id, rag=self.rag, flush=False
+                content=content,
+                user_id=self.user_id,
+                rag=self.rag,
+                flush=False,
+                rag_query=rag_query,
             )
+            if self.use_case == self.UseCase.GENERATE_TASKS:
+                print("CONTEXT FOR TASK GENERATION:")
+                print(self.model.context)
 
             # validate response is in correct JSON format
             if self.use_case in [
@@ -176,6 +206,7 @@ class LLMClient:
             ]:
                 try:
                     json_response = loads(response)
+                    assert isinstance(json_response, list)
                 except Exception as e:
                     print(
                         f"Failed to parse response as JSON: {str(e)}. Response was: {response}"
@@ -186,12 +217,112 @@ class LLMClient:
                     )
                     continue
 
+            # output validation based on use case
             match self.use_case:
                 case self.UseCase.SUMMARIZE_TRANSCRIPTION:
                     output = response
 
                 case self.UseCase.GENERATE_TASKS:
                     output = json_response
+
+                    content_json = loads(content)
+                    goal_start_date = content_json.get("start_date")
+                    goal_end_date = content_json.get("end_date")
+                    goal_days_of_week = set(content_json.get("days_of_week").split(","))
+
+                    for json_obj in json_response:
+                        missing_keys = []
+                        for key in self.schema:
+                            if key not in json_obj:
+                                print(f"Response missing key '{key}'.")
+                                missing_keys.append(key)
+                                valid = False
+
+                        if missing_keys:
+                            print(json_obj)
+                            self.model.previous_conversation.append(
+                                "Error: The previous response was invalid because it was missing the following keys: "
+                                + ", ".join(missing_keys)
+                                + ". Please provide a new response that includes these keys."
+                            )
+                            continue
+
+                        # validate days of week
+                        days_of_week = set(json_obj.get("days_of_week").split(","))
+                        if not days_of_week.issubset(goal_days_of_week):
+                            print(
+                                f"Invalid days_of_week value: {json_obj.get('days_of_week')}. Must be a subset of the goal's days_of_week: {content_json.get('days_of_week')}."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had invalid days_of_week values. Please provide a new response with days_of_week that is a subset of the goal's days_of_week: "
+                                + content_json.get("days_of_week")
+                                + "."
+                            )
+
+                        # validate start and end dates
+                        start_date_timestamp = int(
+                            time.mktime(
+                                time.strptime(json_obj.get("start_date"), "%Y-%m-%d")
+                            )
+                        )
+                        end_date_timestamp = int(
+                            time.mktime(
+                                time.strptime(json_obj.get("end_date"), "%Y-%m-%d")
+                            )
+                        )
+                        goal_start_timestamp = int(
+                            time.mktime(time.strptime(goal_start_date, "%Y-%m-%d"))
+                        )
+                        goal_end_timestamp = int(
+                            time.mktime(time.strptime(goal_end_date, "%Y-%m-%d"))
+                        )
+
+                        if (
+                            start_date_timestamp < goal_start_timestamp
+                            or end_date_timestamp > goal_end_timestamp
+                            or start_date_timestamp >= end_date_timestamp
+                        ):
+                            print(
+                                f"Invalid start_date or end_date value: start_date={json_obj.get('start_date')}, end_date={json_obj.get('end_date')}. start_date must be >= {goal_start_date} and end_date must be <= {goal_end_date} and start_date must be before end_date."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had invalid start_date or end_date values. Please provide a new response with start_date and end_date that satisfy the following conditions: start_date must be on or after the goal's start date of "
+                                + goal_start_date
+                                + ", end_date must be on or before the goal's end date of "
+                                + goal_end_date
+                                + ", and start_date must be before end_date."
+                            )
+
+                        # validate impetus 1-5
+                        impetus = json_obj["impetus"]
+                        if not isinstance(impetus, int) or impetus < 1 or impetus > 5:
+                            print(
+                                f"Invalid impetus value: {impetus}. Must be an integer between 1 and 5."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid impetus value. Please provide a new response with impetus as an integer between 1 and 5."
+                            )
+
+                        # validate weekly_frequency is between 1 and length of days_of_week
+                        weekly_frequency = json_obj["weekly_frequency"]
+                        if (
+                            not isinstance(weekly_frequency, int)
+                            or weekly_frequency < 1
+                            or weekly_frequency > len(days_of_week)
+                        ):
+                            print(
+                                f"Invalid weekly_frequency value: {weekly_frequency}. Must be an integer between 1 and the number of days in days_of_week ({len(days_of_week)})."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid weekly_frequency value. Please provide a new response with weekly_frequency as an integer between 1 and the number of days in days_of_week ("
+                                + str(len(days_of_week))
+                                + ")."
+                            )
+
                 case self.UseCase.GENERATE_TALKING_POINTS:
                     output = json_response
                     for json_obj in json_response:
@@ -210,19 +341,33 @@ class LLMClient:
                                 + ", ".join(missing_keys)
                                 + ". Please provide a new response that includes these keys."
                             )
+                            continue
 
-                        # validate timestamp
-                        end_timestamp = json_obj.get("end_timestamp")
-                        if end_timestamp is not None:
-                            end_timestamp = int(end_timestamp)
-                            if end_timestamp < int(time.time()):
-                                print(
-                                    f"Invalid end_timestamp: {end_timestamp} is in the past."
-                                )
-                                valid = False
-                                self.model.previous_conversation.append(
-                                    "Error: The previous response had an invalid end_timestamp that was in the past. Please provide a new response with a valid end_timestamp that is in the future."
-                                )
+                        # validate impact days
+                        try:
+                            impact_days = int(json_obj.get("impact_days"))
+                            end_timestamp = int(time.time()) + impact_days * 24 * 3600
+                            json_obj["end_timestamp"] = end_timestamp
+
+                        except Exception as e:
+                            print(e)
+                            print(
+                                f"Invalid impact_days value: {json_obj.get('impact_days')}. Must be a valid integer."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid impact_days value that was not an integer. Please provide a new response with impact_days between 3 and 80000."
+                            )
+                            continue
+
+                        if impact_days <= 2 or impact_days > 80000:
+                            print(
+                                f"Invalid impact_days value: {impact_days}. Must be between 3 and 80000."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid impact_days value. Please provide a new response with impact_days between 3 and 80000."
+                            )
 
             if valid:
                 self.model.flush()

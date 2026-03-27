@@ -523,3 +523,5 @@ iOSInjectionProject/
 
 # End of https://www.toptal.com/developers/gitignore/api/xcode,swift,macos,python
 env*
+**/chroma_db/*
+chroma.sqlite3

@@ -43,6 +43,8 @@ final class ApiCall {
             let task_id: Int
             let task: String
             let goal_name: String
+            //added
+            let completed: Bool
         }
         
         struct Res: Codable {
@@ -51,7 +53,7 @@ final class ApiCall {
         }
         
         let body: [String: Any] = [
-            "user_id": "Reach Staff"
+            "user_id": "Reach staff"
         ]
         
         do {
@@ -60,7 +62,7 @@ final class ApiCall {
             //test fallback
             //let res: Res = try await sendRequest("POST", body, "daily_goal_digest_broke")
             self.tasks = res.tasks.map {
-                TaskItem(id: $0.task_id, title: $0.task, isCompleted: false)
+                TaskItem(id: $0.task_id, title: $0.task, isCompleted: $0.completed)
             }
             
             self.taskGoalNames = [:]
@@ -155,6 +157,21 @@ final class ApiCall {
             let _: Empty = try await sendRequest("POST", body, "tasks/update")
         } catch {
             print("updateTask ERROR:")
+            print(error)
+        }
+        await refreshTasks()
+    }
+    func toggleTask(task: TaskItem) async {
+        let body: [String:Any] = [
+            "user_id": "Reach staff",
+            "task_id": task.id,
+            "status": !task.isCompleted
+        ]
+        
+        do {
+            let _: Empty = try await sendRequest("POST", body, "tasks/complete")
+        } catch {
+            print("toggleTask ERROR:")
             print(error)
         }
         await refreshTasks()
