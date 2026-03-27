@@ -123,7 +123,7 @@ class AudioManager: NSObject {
         request.timeoutInterval = 1000
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         
-        request.setValue("Reach staff", forHTTPHeaderField: "User-ID")
+        request.setValue(STAFF_USER_ID, forHTTPHeaderField: "User-ID")
         request.setValue(".m4a", forHTTPHeaderField: "File-Type")
         
         do {
@@ -191,7 +191,7 @@ class AudioManager: NSObject {
         
         // create data dictionary based on python variables
         let body: [String: Any] = [
-            "user_id": "Reach staff",
+            "user_id": STAFF_USER_ID,
             "transcription": self.transcription
         ]
         
@@ -200,7 +200,7 @@ class AudioManager: NSObject {
             let jsonData = try JSONSerialization.data(withJSONObject: body)
             request.httpBody = jsonData
             
-            //print("Saving conversation for user: Reach staff")
+            //print("Saving conversation for user: " + STAFF_USER_ID)
         } catch {
             print("Failed to encode JSON: \(error)")
             return
