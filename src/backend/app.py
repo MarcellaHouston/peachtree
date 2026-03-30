@@ -6,7 +6,7 @@ import transcription.aws as aws
 import chromaDB.chroma_db as chroma
 import os
 import uuid
-from werkzeug.utils import secure_filename
+import json
 
 import logging
 
@@ -57,9 +57,12 @@ def validate_goal(goal):
 
     return errors
 
+
 @app.route("/")
 def hello():
     return "Hello"
+
+
 # ---------------------------------------------------------------------------
 # Goals
 # ---------------------------------------------------------------------------
@@ -111,12 +114,6 @@ def get_goals():
 
     response = {"goals": results}
 
-    user_id = data.get("user_id")
-    if user_id:
-        new_week, schedule = db.check_new_week(user_id)
-        response["new_week"] = new_week
-        response["schedule"] = schedule
-
     return jsonify(response)
 
 
@@ -136,13 +133,16 @@ def create_goal():
 
     if not goal.get("start_date"):
         goal["start_date"] = date.today().isoformat()
-
-    goal["start_date"] = parse_date(goal["start_date"]).isoformat()
+    else:
+        goal["start_date"] = parse_date(goal["start_date"]).isoformat()
     goal["end_date"] = parse_date(goal["end_date"]).isoformat()
     # active_date starts equal to start_date and can be pushed forward via snooze
     goal["active_date"] = goal["start_date"]
 
-    db.insert(
+    if goal.get("days_of_week")[-1] == ",":
+        goal["days_of_week"] = goal["days_of_week"][:-1]
+
+    goal_id = db.insert(
         "goals",
         [
             goal["name"],
@@ -158,6 +158,46 @@ def create_goal():
         ],
     )
 
+    llm_payload = {
+        "goal_name": goal["name"],
+        "start_date": goal["start_date"],
+        "end_date": goal["end_date"],
+        "difficulty": goal["difficulty"],
+        "days_of_week": goal.get("days_of_week"),
+    }
+
+    llm_model = LLMClient(LLMClient.UseCase.GENERATE_TASKS, user_id=goal["user_id"])
+    tasks, valid, retries = llm_model.query(content=json.dumps(llm_payload))
+
+    logger.info("Starting task adds")
+    if valid:
+        logger.info("is valid!")
+        for task in tasks:
+            logger.info(task["task"])
+            db.insert(
+                "tasks",
+                [
+                    goal_id,
+                    task["task"],
+                    task["weekly_frequency"],
+                    task["weight"],
+                    task["days_of_week"],
+                    task["start_date"],
+                    task["end_date"],
+                    task["impetus"],
+                ],
+            )
+        schedule = db.assign_weekly_tasks(
+            user_id=goal["user_id"], this_sunday=db.this_sunday()
+        )
+        logger.info("generate new schedule")
+        logger.info(str(schedule))
+    else:
+        logger.info("Error with LLM")
+        return (
+            jsonify({"error": "LLM failed to generate tasks", "retries": retries}),
+            500,
+        )
     return "", 204
 
 
@@ -186,7 +226,6 @@ def update_goal():
         updates["start_date"] = parse_date(updates["start_date"]).isoformat()
     if "end_date" in updates:
         updates["end_date"] = parse_date(updates["end_date"]).isoformat()
-    # The API uses "user" but the DB column is "user_id" — remap it here
     if "user_id" in updates:
         updates["user_id"] = updates.pop("user_id")
 
@@ -219,7 +258,7 @@ def delete_goal():
     return "", 204
 
 
-@app.route("/goals/complete", methods=["POST"])
+@app.route("/tasks/complete", methods=["POST"])
 def complete_task():
     # Mark a task as done or not-done in the user's current week_schedule.
     data = request.get_json(silent=True) or {}
@@ -271,7 +310,8 @@ def daily_goal_digest():
         "friday",
         "saturday",
         "sunday",
-    ][(date.today().weekday() + 1) % 7]
+    ][(date.today().weekday()) % 7]
+    db.check_new_week(user_id)
     tasks = db.get_daily_tasks(user_id)
     return jsonify({"day": today_name, "tasks": tasks})
 
@@ -303,7 +343,6 @@ def eod_summary():
 
     # Transcribe the audio file
     transcription = ""
-    logger.info("1")
     try:
         with open(temp_path, "wb") as f:
             f.write(audio_file)
@@ -311,7 +350,6 @@ def eod_summary():
         # Upload to s3 and then transcribe
         aws.upload_to_s3(temp_path)
         transcription = aws.transcription_service(temp_path, clean_up=True)
-        logger.info("2")
         # Cleanup local file
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -344,7 +382,9 @@ def eod_summary():
 
     # Query the LLM with the transcription, which returns the summary
     summary = llm_model.query(content=transcription)
-    return jsonify({"summary": summary, "transcription": transcription})
+    logger.info(summary[0])
+    logger.info(transcription)
+    return jsonify({"summary": summary[0], "transcription": transcription})
 
 
 # Save convo to chromadb
@@ -353,21 +393,25 @@ def save_convo():
     data = request.get_json()
     userid = data.get("user_id")
     transcription = data.get("transcription")
+    logger.info("Transcription: " + transcription)
 
     if not userid or not transcription:
         return jsonify({"error": "Missing information"})
 
     # Initialize LLMClient
     llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
-
+    logger.info("Initialized LLM Client for talking points")
     # Query the LLM to get the entries for our conversation
     json_convo_args, valid, _ = llm_client.query(transcription)
-
+    logger.info(str(json_convo_args))
+    logger.info("Validity: " + str(valid))
     if not valid:
         return jsonify({"error": "LLM was unable to get valid entries"}), 400
 
     # Store convo in chromadb with what the LLM returned
+    logger.info(f"Storing the following convo in chromadb for user:")
     for arg in json_convo_args:
+        logger.info(arg.get("verbose_summary"))
         chroma.store_talking_point(
             user_id=userid,
             document=arg.get("document"),
@@ -375,6 +419,7 @@ def save_convo():
             static_trait=bool(arg.get("static_trait")),
             end_timestamp=int(arg.get("end_timestamp")),
         )
+    logger.info("done with chroma store")
 
     return "", 204
 

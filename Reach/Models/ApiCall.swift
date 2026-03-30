@@ -53,7 +53,7 @@ final class ApiCall {
         }
         
         let body: [String: Any] = [
-            "user_id": "Reach Staff"
+            "user_id": STAFF_USER_ID
         ]
         
         do {
@@ -104,8 +104,7 @@ final class ApiCall {
     }
     func createGoal(goal: GoalItem) async {
         let body: [String: Any] = goal.requestBody()
-        // TODO: Don't let user create a goal with an ID
-        
+        // Backend will ignore goalid
         
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
@@ -131,7 +130,6 @@ final class ApiCall {
         await refreshGoals()
     }
     func deleteGoal(goal: GoalItem) async {
-        // TODO: This is a draft of estimated endpoint
         if goal.id == -1 {
             print("Modifying goal should not have dummy id")
             return
@@ -148,39 +146,17 @@ final class ApiCall {
     }
     
     // Informs backend of change and refreshes tasks
-    func updateTask(task: TaskItem) async {
-        // TODO: This is a draft of estimated endpoint
-        // TODO: Make sure created tasks on frontend only get their id from backend
-        let body: [String:Any] = task.requestBody()
+    func toggleTask(task: TaskItem) async {
+        let body: [String:Any] = [
+            "user_id": STAFF_USER_ID,
+            "task_id": task.id,
+            "status": !task.isCompleted
+        ]
         
         do {
-            let _: Empty = try await sendRequest("POST", body, "tasks/update")
+            let _: Empty = try await sendRequest("POST", body, "tasks/complete")
         } catch {
-            print("updateTask ERROR:")
-            print(error)
-        }
-        await refreshTasks()
-    }
-    func createTask(task: TaskItem) async {
-        // TODO: This is a draft of estimated endpoint
-        let body: [String:Any] = task.requestBody()
-        
-        do {
-            let _: Empty = try await sendRequest("POST", body, "tasks/create")
-        } catch {
-            print("createTask ERROR:")
-            print(error)
-        }
-        await refreshTasks()
-    }
-    func deleteTask(task: TaskItem) async {
-        // TODO: This is a draft of estimated endpoint
-        let body: [String:Any] = ["id": task.id]
-        
-        do {
-            let _: Empty = try await sendRequest("POST", body, "tasks/delete")
-        } catch {
-            print("deleteTask ERROR:")
+            print("toggleTask ERROR:")
             print(error)
         }
         await refreshTasks()
