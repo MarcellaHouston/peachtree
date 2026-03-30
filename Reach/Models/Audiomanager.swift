@@ -34,34 +34,6 @@ class AudioManager: NSObject {
     private func startRecording() {
         let session = AVAudioSession.sharedInstance()
         //to account for older ios versions
-        if #available(iOS 17.0, *) {
-            AVAudioApplication.requestRecordPermission { granted in
-                guard granted else { return }
-                do {
-                    try session.setCategory(.playAndRecord, mode: .default)
-                    try session.setActive(true)
-                    
-                    let path = FileManager.default.temporaryDirectory.appendingPathComponent("reflection.m4a")
-                    let settings: [String: Any] = [
-                        AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                        AVSampleRateKey: 12000,
-                        AVNumberOfChannelsKey: 1,
-                        AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-                    ]
-                    
-                    self.audioRecorder = try AVAudioRecorder(url: path, settings: settings)
-                    self.audioRecorder?.record()
-                    
-                  
-                    DispatchQueue.main.async { self.isRecording = true }
-                    
-                    //if it didnt record properly
-                } catch {
-                    print("Recording failed: \(error)")
-                }
-            }
-            
-        } else {
             session.requestRecordPermission { granted in
                 guard granted else { return }
                 do {
@@ -79,14 +51,12 @@ class AudioManager: NSObject {
                     self.audioRecorder = try AVAudioRecorder(url: path, settings: settings)
                     self.audioRecorder?.record()
                     
-                    // UI updates must stay on the main thread
-                    DispatchQueue.main.async { self.isRecording = true }
+                    self.isRecording = true
                 } catch {
                     print("Recording failed: \(error)")
                 }
             }
         }
-    }
     
     private func stopRecording() {
             audioRecorder?.stop()
@@ -100,9 +70,7 @@ class AudioManager: NSObject {
     
     func startUpload(fileURL: URL) {
            //show analyzing
-            DispatchQueue.main.async {
                 self.isUploading = true
-            }
             
             //start the actual network request
             self.uploadAudio(fileURL: fileURL)
@@ -110,31 +78,25 @@ class AudioManager: NSObject {
     
     
     // the network request to send file to backend
-    private func uploadAudio(fileURL: URL) {
-        
-        //guard let url = URL(string: "http://\(backendIP):5000/stt/eod_summary") else { return }
+private func uploadAudio(fileURL: URL) {
         guard let url = URL(string: "http://\(backendIP):80/stt/eod_summary") else { return }
         
-        // Start loading state
-        DispatchQueue.main.async { self.isUploading = true }
+        self.isUploading = true // Direct update
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 1000
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        
         request.setValue("Reach staff", forHTTPHeaderField: "User-ID")
         request.setValue(".m4a", forHTTPHeaderField: "File-Type")
         
         do {
             let audioData = try Data(contentsOf: fileURL)
-            //print("reached endpoint")
             request.httpBody = audioData
-            //print(audioData)
             
-            let task = URLSession.shared.dataTask(with: request) { data, response, error in
-                // Stop loading state regardless of outcome
-                DispatchQueue.main.async { self.isUploading = false }
+            // FIX: Remove 'let task =' and move '.resume()' to the end of this block
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                self.isUploading = false // Direct update
                 
                 if let error = error {
                     print("Upload failed: \(error.localizedDescription)")
@@ -142,41 +104,25 @@ class AudioManager: NSObject {
                 }
                 
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
-                    print("Upload status: 200")
-
-                    
                     do {
-                        // Decode JSON response from the backend
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                            
-                            // update ui variables
-                            DispatchQueue.main.async {
-                                self.summary = "\(json["summary"] ?? "No summary available.")"
-                                self.transcription = "\(json["transcription"] ?? "No transcription available.")"
-                                //  screen swap in ui
-                                self.showReview = true
-                                
-                            }
+                            // Direct updates without DispatchQueue
+                            self.summary = "\(json["summary"] ?? "No summary available.")"
+                            self.transcription = "\(json["transcription"] ?? "No transcription available.")"
+                            self.showReview = true
                         }
-                        //test to make sure the above if branch was working
-                        else
-                        {
-                            //print("oh no")
-                        }
-                        
                     } catch {
                         print("JSON decoding failed: \(error)")
                     }
                 }
-            }
-            
-            task.resume()
+            }.resume()
             
         } catch {
             print("Could not read audio file: \(error)")
-            DispatchQueue.main.async { self.isUploading = false }
+            self.isUploading = false
         }
     }
+
     
     // save function so back end saves it after user presses "looks good"
     
