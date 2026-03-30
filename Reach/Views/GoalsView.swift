@@ -144,13 +144,13 @@ private struct GoalRow: View {
             .padding(.horizontal, 12)
             .frame(height: 46)
             .frame(maxWidth: .infinity)
-            .background(Color(red: 0.77, green: 0.69, blue: 0.94))
+            // make goal gray if it's paused
+            .background(goal.isPaused ? Color(red: 0.63, green: 0.63, blue: 0.63) : Color(red: 0.77, green: 0.69, blue: 0.94))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .frame(height: 46)
             
             .frame(maxWidth: .infinity)
             
-            .background(Color(red: 0.77, green: 0.69, blue: 0.94))
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
