@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-//specific tabs
+//enum stores nav bar tabs
 enum AppTab {
     case todayTasks
     case goals
@@ -19,9 +19,13 @@ enum AppTab {
 //right now only the today’s tasks tab is active, while the other tabs are shown
 //so the screen matches the full app layout from the design
 struct BottomNavView: View {
+    //lets this view read and change a value owned by another parent view
+    //selectTab keeps track of which tab is currently active
     @Binding var selectedTab: AppTab
 
     var body: some View {
+        //lays out nav bar horizontally depending on which selected tab is selected
+        //determines if it is star.circle or star.circle.fill
         HStack(spacing: 0) {
             navItem(title: "Today’s Tasks", selected: selectedTab == .todayTasks, systemImage: selectedTab == .todayTasks ? "star.circle.fill" : "star.circle", tab: .todayTasks)
             navItem(title: "Goals", selected: selectedTab == .goals, systemImage: selectedTab == .goals ? "star.circle.fill" : "star.circle", tab: .goals)
@@ -50,19 +54,26 @@ struct BottomNavView: View {
                 .foregroundColor(selected ? Color(red: 0.29, green: 0.22, blue: 0.55) : .white)
                 .frame(width: 62, height: 36)
                 .background(selected ? Color(red: 0.88, green: 0.83, blue: 0.97) : Color.clear)
+            //.clipShade cuts the background into a shape
+            //Capsule() makes the background look like a rounded pill
                 .clipShape(Capsule())
 
             Text(title)
             //the text is kept small so all four labels fit on one row
             //minimumScaleFactor helps prevent the longer labels from getting cut off too early
                 .font(.system(size: 11, weight: .semibold))
+            //changes text color
                 .foregroundColor(.white)
+            //keeps the text to one line only
                 .lineLimit(1)
+            //shrinks the text if needed so it still fits
                 .minimumScaleFactor(0.72)
         }
         //this makes each tab take up equal width across the whole navigation bar
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        //makes the whole rectangular area tappable of Rectangle() shape
         .contentShape(Rectangle())
+        //runs code when user taps this tab item
         .onTapGesture {
             selectedTab = tab
         }

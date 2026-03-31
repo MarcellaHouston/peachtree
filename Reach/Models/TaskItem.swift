@@ -6,8 +6,9 @@
 //
 import Foundation
 
-//struct represents one task on the Today's Tasks screen
-//id gives each task in taskitem struct its own id, makes it easier to iterate and change specific taskitem elements
+//struct represents TaskItem meaning one task on the today tasks screen
+//id uniquely identifies each task
+//-1 is just a default placeholder id until a real backend id is used
 //title is the task text for each taskitem
 //isCompleted is used to check whether a checkmark has been checked or not (True ? False)
 struct TaskItem: Identifiable {
@@ -16,6 +17,7 @@ struct TaskItem: Identifiable {
     let title: String
     var isCompleted: Bool
     
+    //function builds dictionary that gets sent to the backend
     func requestBody() -> [String:Any] {
         let body: [String:[String:Any]] = [
             "task": [
