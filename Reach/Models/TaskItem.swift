@@ -11,8 +11,8 @@ import Foundation
 //-1 is just a default placeholder id until a real backend id is used
 //title is the task text for each taskitem
 //isCompleted is used to check whether a checkmark has been checked or not (True ? False)
+// Rrepresentation of a task on the Daily Goal Digest
 struct TaskItem: Identifiable {
-    //let id = UUID()
     var id: Int = -1
     let title: String
     var isCompleted: Bool
@@ -23,11 +23,9 @@ struct TaskItem: Identifiable {
             "task": [
                 "name": title,
                 "id": id,
-                // No description in frontend
-                "measurable": "completion",// No measurable in frontend
-                // No start date in frontend
-                "end_date": "2999-01-01",// No end date in frontend
-                "user": "Reach Staff"// TODO: Unhardcode the user
+                "measurable": "completion",
+                "end_date": NO_DUE,
+                "user": STAFF_USER_ID // TODO: Unhardcode the user
                 
                 // No isCompleted in backend
             ]

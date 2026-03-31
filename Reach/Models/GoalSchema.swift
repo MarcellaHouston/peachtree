@@ -28,13 +28,13 @@ struct GoalSchema : Codable{
         formatter.dateFormat = "yyyy-MM-dd"
 
         var res = GoalItemBuilder().title(name).id(id)
-        if end_date != "2999-01-01" {
+        if end_date != NO_DUE {
             if let date = formatter.date(from: end_date) {
                 res = res.due(date)
             }
         }
         if let cat = category {
-            if cat != "EMPTY_CATEGORY"{
+            if cat != NO_CATEGORY {
                 res = res.category(cat)
             }
         }
@@ -66,6 +66,10 @@ struct GoalSchema : Codable{
         }
         if days_of_week.contains("sat") {
             res = res.sat()
+        }
+        
+        if isPaused {
+            res = res.pause()
         }
         
         return res.build()
