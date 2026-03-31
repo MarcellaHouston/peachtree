@@ -11,10 +11,14 @@ import SwiftUI
 //it combines the header, the list of tasks, the progress section, and the bottom navigation
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
+    //@Binding connects this view to a parent view's state
+    //selectedTab lets this screen change the current tab
     @Binding var selectedTab: AppTab
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
+    //dictionary mapping of task id to goal name
     @State private var selectedTaskGoalName: [Int: String] = [:]
+    //controls whether the popup is visible or not
     @State private var showEditGoal = false
     
     /*
@@ -94,9 +98,12 @@ struct TodayTasksView: View {
                 //only this section scrolls so the progress area stays in place
                 ScrollView(showsIndicators: true) {
                     VStack(spacing: 26) {
+                        //loops through each task and creates UI row fo each one
                         ForEach(ApiCall.shared.tasks) { task in
                             TodayTaskRow(task: task, onTaskTap: {
+                                //when task is tapped, finds its goal
                                 if let goalName = selectedTaskGoalName[task.id] {
+                                    //find matching goal from backenddata
                                     if let matchedGoal =
                                         ApiCall.shared.goals.first(where: { $0.title == goalName }) {
 
@@ -110,6 +117,7 @@ struct TodayTasksView: View {
                     .padding(.horizontal, 28)
                     .padding(.bottom, 140)
                 }
+                //frame fills remaining space
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 //progress section that shows how many tasks have been completed

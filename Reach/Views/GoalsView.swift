@@ -91,6 +91,7 @@ struct GoalsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
+        //extends UI to edges
         .ignoresSafeArea(edges: .bottom)
         //overlay used for popups, dim background
         .overlay {
@@ -122,13 +123,14 @@ private struct GoalRow: View {
     let onTap: () -> Void
 
     var body: some View {
+        //horizontal row display of goal item and pencil as well as some padding
         Button(action: onTap) {
             HStack {
                 
                 // left spacer to balance the pencil width
                 Spacer()
                     .frame(width: 24)
-
+                //title of each goal
                 Text(goal.title)
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(.black)

@@ -57,7 +57,8 @@ struct HeaderView: View {
                 .frame(width: 50, height: 50)
 
                 Spacer()
-
+                
+                //Stacks the account icon and "Account text" vertically
                 VStack(spacing: 3) {
                     Circle()
                     .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
@@ -72,6 +73,7 @@ struct HeaderView: View {
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.white)
                 }
+                //fixed width helps keep the right section aligned
                 .frame(width: 86)
             }
             //this second row places the peach icon in the center area
