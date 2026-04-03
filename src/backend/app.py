@@ -59,8 +59,14 @@ def validate_goal(goal):
 
 
 # Helper function that should be called in every endpoint
-def check_auth(user_id: str, auth: str, check=False) -> bool:
+def check_auth(headers: dict) -> bool:
     # Makes sure user's authentication key matches their stored token
+    user_id = headers.get("User_ID")
+    auth = headers.get("Authorization")
+    if not user_id or not auth:
+        return False
+    auth = auth.split()[-1]
+    check = False
     out = True
     if check:
         # check to make sure authentication key from request matches user's token

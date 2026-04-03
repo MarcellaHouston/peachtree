@@ -283,14 +283,13 @@ class Database:
         self._commit()
         return True
 
-    def get_user_token(self, user_id: str) -> str {
+    def get_user_token(self, user_id: int) -> str {
         # Get the token used for authorization for a user
         row = self._run_param(
-            "SELECT token FROM users WHERE username = ?", (user_id,)
+            "SELECT token FROM users WHERE id = ?", (user_id,)
         ).fetchone()
         if row:
             token = row[0]
-            print("User %s's token is %s\n", user_id, token)
             return token
         else:
             return f"ERROR: TOKEN FOR USER {user_id} NOT FOUND\n"
