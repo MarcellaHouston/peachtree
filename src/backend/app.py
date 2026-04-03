@@ -58,6 +58,18 @@ def validate_goal(goal):
     return errors
 
 
+# Helper function that should be called in every endpoint
+def check_auth(user_id: str, auth: str, check=False) -> bool:
+    # Makes sure user's authentication key matches their stored token
+    out = True
+    if check:
+        # check to make sure authentication key from request matches user's token
+        token = db.get_user_token(user_id)
+        out = (auth == token)
+    return out
+
+
+
 @app.route("/")
 def hello():
     return "Hello"
@@ -74,6 +86,14 @@ def get_goals():
     # If no dates are provided, defaults to goals active in the past 7 days.
     # If user_id is provided, also runs the weekly schedule check.
     data = request.get_json(silent=True) or {}
+    
+    user_id = data.get("user_id")
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     start_date = parse_date(data.get("start_date"))
     end_date = parse_date(data.get("end_date"))
@@ -124,6 +144,17 @@ def create_goal():
     data = request.get_json()
     if not data or "goal" not in data:
         return jsonify({"error": "Missing 'goal' in request body"}), 400
+    
+    user_id = data.get("user_id")
+    if not "user_id" in data:
+        return jsonify({"error": "Missing user_id in request"}), 401
+    
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "No authentication key provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     goal = data["goal"]
 
@@ -214,6 +245,16 @@ def update_goal():
 
     if not goal_id:
         return jsonify({"error": "Missing goal id for update"}), 400
+    
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 401
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "No authentication key provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     errors = validate_goal(goal)
     if errors:
@@ -239,6 +280,17 @@ def snooze_goal():
     # Defer a goal by pushing its active_date forward by N weeks (snapped to Sunday).
     # The goal stays in the system but won't appear as active until that date.
     data = request.get_json()
+
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id in request"}), 401
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
+
     goal_id = data.get("id")
     weeks = data.get("weeks")
     if not goal_id or not weeks:
@@ -251,6 +303,17 @@ def snooze_goal():
 def delete_goal():
     # Delete a goal by id. Associated tasks are removed automatically via cascade.
     data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id in request"}), 401
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
+
     goal_id = data.get("id")
     if goal_id is None:
         return jsonify({"error": "Missing 'id' in request body"}), 400
@@ -265,8 +328,17 @@ def complete_task():
     user_id = data.get("user_id")
     task_id = data.get("task_id")
     status = data.get("status")
+
     if not user_id or task_id is None or status is None:
         return jsonify({"error": "Missing user_id, task_id, or status"}), 400
+
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
+    
     db.set_task_status(user_id, task_id, status)
     return "", 204
 
@@ -288,6 +360,14 @@ def weekly_schedule():
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
+    
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
+
     new_week, schedule = db.check_new_week(user_id)
     return jsonify({"new_week": new_week, "schedule": schedule})
 
@@ -301,6 +381,13 @@ def daily_goal_digest():
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
+    
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     today_name = [
         "monday",
@@ -328,9 +415,17 @@ def eod_summary():
     logger.info("🚀 Reached the EOD Summary endpoint")
     userid = request.headers.get("User-ID")
     file_type = request.headers.get("File-Type", ".m4a")
+
     audio_file = request.data
     if not userid:
         return jsonify({"error": "Missing User-ID in header"}), 401
+
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"Authentication key not provided"}), 401
+    auth = check_auth(userid, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     if not file_type:
         return jsonify({"error": "Missing File Type in header"}), 402
@@ -397,6 +492,13 @@ def save_convo():
 
     if not userid or not transcription:
         return jsonify({"error": "Missing information"})
+
+    auth_key = request.headers.get("authenticate")
+    if not auth_key:
+        return jsonify({"error": "Authentication key not provided"}), 401
+    auth = check_auth(userid, auth_key, False) # change to true when done testing
+    if not auth:
+        return jsonify({"error": "User isn't authenticated"}), 401
 
     # Initialize LLMClient
     llm_client = LLMClient(use_case=LLMClient.UseCase.GENERATE_TALKING_POINTS)
