@@ -93,6 +93,82 @@ struct GoalItem {
         
         return body
     }
+    
+    mutating func modify(modification mod: GoalModification) {
+        if mod.key == .title {
+            title = mod.val
+        } else if mod.key == .category {
+            if mod.val != ""{
+                category = mod.val
+            } else {
+                category = nil
+            }
+        } else if mod.key == .difficulty {
+            if mod.val == "average" {
+                difficulty = .average
+            } else if mod.val == "hard" {
+                difficulty = .hard
+            } else {
+                difficulty = .easy
+            }
+        } else if mod.key == .repeatDays {
+            // TODO: thsi
+        } else if mod.key == .due {
+            if mod.val != NO_DUE {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                if let date = formatter.date(from: mod.val) {
+                    due = date
+                }
+            } else {
+                due = nil
+            }
+        } else if mod.key == .pauseState {
+            if mod.val == "true" {
+                isPaused = true
+            } else if mod.val == "false" {
+                isPaused = false
+            }
+        }
+    }
+}
+
+struct GoalModification {
+    enum Key {
+        case title
+        case category
+        case difficulty
+        case repeatDays
+        case due
+        case pauseState
+    }
+    
+    let id: Int
+    let key: Key
+    let val: String
+    
+    func toString() -> String {
+        if key == .title {
+            return "Set title to " + val
+        } else if key == .category {
+            if val != "" {
+                return "Set category to " + val
+            } else {
+                return "Remove category"
+            }
+        } else if key == .difficulty {
+            return "Set difficulty to " + val
+        } else if key == .repeatDays {
+            return "Set repeat days to " + val
+        } else if key == .due {
+            if val != NO_DUE {
+                return "Set end date to " + val
+            } else {
+                return "Remove end date"
+            }
+        }
+        return "Set paused to " + val
+    }
 }
 
 // More readable and friendly way to declare a GoalItem instance
