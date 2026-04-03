@@ -146,6 +146,7 @@ struct GoalModification {
     let id: Int
     let key: Key
     let val: String
+    var active: Bool = true
     
     func toString() -> String {
         if key == .title {

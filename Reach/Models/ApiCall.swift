@@ -19,8 +19,62 @@ final class ApiCall {
     
     private(set) var goals = [GoalItem]()
     private(set) var tasks = [TaskItem]()
+    private(set) var goalMods = [GoalModification]()
+    func toggleMod(ind: Int) {
+        goalMods[ind].active.toggle()
+    }
     //Added
     private(set) var taskGoalNames: [Int:String] = [:]
+    // Goal id -> index in goals that id is at
+    private(set) var idToGoalInd: [Int:Int] = [:]
+    
+    // Populate with fallback data
+    func fallback() {
+        goalMods = FallbackData.fallbackGoalMods
+        goals = FallbackData.fallbackGoals
+        tasks = FallbackData.fallbackTasks
+        taskGoalNames = FallbackData.fallbackTaskGoalNames
+    }
+    func goalOf(id: Int) -> GoalItem {
+        if let goalsInd = idToGoalInd[id], goals[goalsInd].id == id {
+            return goals[goalsInd]
+        }
+        // Out of date map, refresh it
+        idToGoalInd = [:]
+        for i in 0..<goals.count {
+            idToGoalInd[goals[i].id] = i
+        }
+        
+        if let goalsInd = idToGoalInd[id] {
+            return goals[goalsInd]
+        }
+        return GoalItemBuilder().title("Some Goal That Doesn't Exist").build()
+    }
+    
+    // Sends call to update all goals that are denoted to update in goalMods
+    func applyGoalMods() async {
+        // Goal id -> new version of goal (has the mods)
+        var modifyGoals: [Int:GoalItem] = [:]
+        for goalMod in goalMods {
+            // Check if we've seen this goal before
+            if goalMod.id < 0 {
+                continue
+            }else if modifyGoals[goalMod.id] == nil {
+                modifyGoals[goalMod.id] = goalOf(id: goalMod.id)
+            }
+            
+            // Modify the goal
+            modifyGoals[goalMod.id]?.modify(modification: goalMod)
+        }
+        
+        // API call modify all goals
+        for entry in modifyGoals {
+            await updateGoal(goal: entry.value)
+            if entry.value.isPaused {
+                await snoozeGoal(goal: entry.value)
+            }
+        }
+    }
     
     // Syncs local goals variable to database info
     func refreshGoals() async {

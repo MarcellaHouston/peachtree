@@ -7,6 +7,7 @@ struct WeeklyRecapView: View {
     let suggestionText = "Focus on consistency by reducing daily job applications and structuring study into focused sessions. Maintain journaling and weekly meal prep for steady progress."
     let completedTaskCount = 10
     let totalTaskCount = 12
+    @State var showingPopup: Bool = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -49,11 +50,16 @@ struct WeeklyRecapView: View {
                             .frame(width: 40)
                             .foregroundColor(Color(red: 0.52, green: 0.21, blue: 0.95))
                             .overlay(Text("+").foregroundColor(.white))
+                            .padding(.horizontal, 10)
                         VStack {
                             Text("AI Suggestions").SmallHeader()
                             Text("Next steps to stay on track").font(.system(size:13))
                         }.frame(alignment: .leading)
+                        Spacer()
                         Image(systemName: "sparkles")
+                            .font(.system(size: 30))
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 10)
                     }
                     .padding(.vertical, 2)
                     Text("Rebalance Daily Workload").SmallHeader()
@@ -62,6 +68,9 @@ struct WeeklyRecapView: View {
                 .frame(width: 360, height: 141)
                 .background(Color(red: 254, green: 247, blue: 255))
                 .cornerRadius(20)
+                .onTapGesture {
+                    showingPopup = true
+                }
                 
             } // End of content
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -70,6 +79,13 @@ struct WeeklyRecapView: View {
         }
         .background(Color.black)
         .ignoresSafeArea(edges: .bottom)
+        .overlay{
+            if showingPopup {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                GoalSuggestionsPopup(isShowing: $showingPopup)
+            }
+        }
     }
 }
 
