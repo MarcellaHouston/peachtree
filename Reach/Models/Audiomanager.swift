@@ -78,7 +78,9 @@ class AudioManager: NSObject {
     
     
     // the network request to send file to backend
+    
 private func uploadAudio(fileURL: URL) {
+        // TODO: change url to accommodate end of day vs. goal guidance
         guard let url = URL(string: "http://\(backendIP):80/stt/eod_summary") else { return }
         
         self.isUploading = true // Direct update
@@ -107,6 +109,7 @@ private func uploadAudio(fileURL: URL) {
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
                     do {
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            // TODO: add suggestions and proposed changes for guidance
                             // Direct updates without DispatchQueue
                             self.summary = "\(json["summary"] ?? "No summary available.")"
                             self.transcription = "\(json["transcription"] ?? "No transcription available.")"
