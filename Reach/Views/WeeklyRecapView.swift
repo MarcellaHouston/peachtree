@@ -2,6 +2,9 @@ import SwiftUI
 
 struct WeeklyRecapView: View {
     @Binding var selectedTab: AppTab
+    @Binding var isDemoMode: Bool
+    @Binding var showSignIn: Bool
+    @Binding var showDemoPopup: Bool
 
     var body: some View {
         VStack(spacing: 0) {

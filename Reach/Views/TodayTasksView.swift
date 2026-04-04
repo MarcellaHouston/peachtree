@@ -11,15 +11,22 @@ import SwiftUI
 //it combines the header, the list of tasks, the progress section, and the bottom navigation
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
+    
     //@Binding connects this view to a parent view's state
     //selectedTab lets this screen change the current tab
     @Binding var selectedTab: AppTab
+    //For Demo Mode
+    @Binding var isDemoMode: Bool
+    //For Showing Sign In screen
+    @Binding var showSignIn: Bool
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
     //dictionary mapping of task id to goal name
     @State private var selectedTaskGoalName: [Int: String] = [:]
     //controls whether the popup is visible or not
     @State private var showEditGoal = false
+    //For Demo Mode
+    @Binding var showDemoPopup: Bool
     
     /*
     private let fallbackTasks: [TaskItem] = [
@@ -79,8 +86,7 @@ struct TodayTasksView: View {
     var body: some View {
         VStack(spacing: 0) {
             //header at the top of the screen containing the status bar and profile section
-            HeaderView()
-
+            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
             VStack(spacing: 0) {
                 //screen title centered below the header
                 //the larger font matches the emphasis shown in the figma design
@@ -168,6 +174,7 @@ struct TodayTasksView: View {
             //API Call
             await ApiCall.shared.refreshGoals()
             let didLoadTasks = await ApiCall.shared.refreshTasks()
+            
 
             //REMOVE ONLY FOR DEBUGGING
             //print("=== TASKS IN VIEW ===")
@@ -190,6 +197,7 @@ struct TodayTasksView: View {
                     Spacer()
                 }
             }
+            
         }
     }
 }
@@ -263,8 +271,8 @@ private struct TodayTaskRow: View {
     }
 }
 
+
 #Preview {
-    TodayTasksView(selectedTab: .constant(.todayTasks))
+    //TodayTasksView(selectedTab: .constant(.todayTasks))
+    TodayTasksView(selectedTab: .constant(.todayTasks),isDemoMode: .constant(true),showSignIn: .constant(false),showDemoPopup: .constant(true))
 }
-
-

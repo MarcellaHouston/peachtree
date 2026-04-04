@@ -11,6 +11,11 @@ import SwiftUI
 struct GoalsView: View {
     //binding to control which tab is currently selected in the app
     @Binding var selectedTab: AppTab
+    
+    @Binding var isDemoMode: Bool
+    @Binding var showSignIn: Bool
+    @Binding var showDemoPopup: Bool
+    
     //this keeps track of which goal is currently selected when user taps one
     @State private var selectedGoal: GoalItem? = nil
     
@@ -23,7 +28,7 @@ struct GoalsView: View {
     var body: some View {
         //outer container for header, content, nav
         VStack(spacing: 0) {
-            HeaderView()
+            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
             //main content
             VStack(spacing: 0) {
                 //Goals Formatting and Text title
@@ -160,7 +165,7 @@ private struct GoalRow: View {
 }
 
 #Preview {
-    GoalsView(selectedTab: .constant(.goals))
+    GoalsView(selectedTab: .constant(.goals), isDemoMode: .constant(true), showSignIn: .constant(false), showDemoPopup: .constant(false))
 }
 
 

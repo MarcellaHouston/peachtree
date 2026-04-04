@@ -11,13 +11,16 @@ import AVFoundation
 struct EODCheckinView: View {
     @Binding var selectedTab: AppTab
     
+    @Binding var isDemoMode: Bool
+    @Binding var showSignIn: Bool
+    @Binding var showDemoPopup: Bool
     //from Audiomanager.swift
     @State private var audioManager = AudioManager()
     
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView()
-
+            //HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn)
+            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
             VStack(spacing: 0) {
                 
                 // Check if we should show the review screen or the mic screen

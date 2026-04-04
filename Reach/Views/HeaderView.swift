@@ -11,6 +11,11 @@ import SwiftUI
 //it includes a small status bar row and a second row for the peach icon and account section
 //the goal is to match the figma layout while keeping the structure simple
 struct HeaderView: View {
+    @Binding var isDemoMode: Bool
+    @Binding var showSignIn: Bool
+    @Binding var showDemoPopup: Bool
+    @Binding var selectedTab: AppTab
+    var showLeaveDemo: Bool
     var body: some View {
         VStack(spacing: 0) {
            
@@ -43,37 +48,47 @@ struct HeaderView: View {
             //this top row acts like a custom phone status bar
             //the horizontal padding keeps the time and icons from touching the edges
             //the small top padding moves the row close to the top like the design
+            //.padding(.horizontal, 24)
             .padding(.horizontal, 24)
             .padding(.top, 8)
 
             HStack(spacing: 0) {
-                Color.clear
-                .frame(width: 86)
+                HStack {
+                    if showLeaveDemo {
+                        Button("Leave Demo") {
+                            isDemoMode = false
+                            showDemoPopup = false
+                            selectedTab = .todayTasks
+                            showSignIn = true
+                        }
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(Color(red: 0.90, green: 0.34, blue: 0.31))
+                    }
+                }
+                .frame(width: 86, alignment: .leading)
 
                 Spacer()
 
                 Circle()
-                .fill(Color(red: 0.89, green: 0.58, blue: 0.59))
-                .frame(width: 50, height: 50)
+                    .fill(Color(red: 0.89, green: 0.58, blue: 0.59))
+                    .frame(width: 50, height: 50)
 
                 Spacer()
-                
-                //Stacks the account icon and "Account text" vertically
+
                 VStack(spacing: 3) {
                     Circle()
-                    .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
-                    .frame(width: 34, height: 34)
-                    .overlay {
-                        Image(systemName: "person.crop.circle")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
-                    }
+                        .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
+                        .frame(width: 34, height: 34)
+                        .overlay {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 18, weight: .regular))
+                                .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
+                        }
 
                     Text("Account")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.white)
                 }
-                //fixed width helps keep the right section aligned
                 .frame(width: 86)
             }
             //this second row places the peach icon in the center area
@@ -94,5 +109,5 @@ struct HeaderView: View {
 }
 
 #Preview {
-    HeaderView()
+    HeaderView(isDemoMode: .constant(true), showSignIn: .constant(false), showDemoPopup: .constant(false), selectedTab: .constant(.todayTasks), showLeaveDemo: true)
 }
