@@ -34,8 +34,8 @@ class AudioManager: NSObject {
     private func startRecording() {
         let session = AVAudioSession.sharedInstance()
         //to account for older ios versions
-            session.requestRecordPermission { granted in
-                guard granted else { return }
+        
+        //removed call for "requestRecordPermission
                 do {
                     try session.setCategory(.playAndRecord, mode: .default)
                     try session.setActive(true)
@@ -56,7 +56,7 @@ class AudioManager: NSObject {
                     print("Recording failed: \(error)")
                 }
             }
-        }
+    
     
     private func stopRecording() {
             audioRecorder?.stop()
