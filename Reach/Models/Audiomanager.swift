@@ -87,7 +87,7 @@ private func uploadAudio(fileURL: URL) {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 1000
+        request.timeoutInterval = 240
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         
         request.setValue(STAFF_USER_ID, forHTTPHeaderField: "User-ID")
