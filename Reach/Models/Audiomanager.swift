@@ -34,8 +34,8 @@ class AudioManager: NSObject {
     private func startRecording() {
         let session = AVAudioSession.sharedInstance()
         //to account for older ios versions
-            session.requestRecordPermission { granted in
-                guard granted else { return }
+        
+        //removed call for "requestRecordPermission
                 do {
                     try session.setCategory(.playAndRecord, mode: .default)
                     try session.setActive(true)
@@ -56,7 +56,7 @@ class AudioManager: NSObject {
                     print("Recording failed: \(error)")
                 }
             }
-        }
+    
     
     private func stopRecording() {
             audioRecorder?.stop()
@@ -87,7 +87,7 @@ private func uploadAudio(fileURL: URL) {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 1000
+        request.timeoutInterval = 240
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         
         request.setValue(STAFF_USER_ID, forHTTPHeaderField: "User-ID")
