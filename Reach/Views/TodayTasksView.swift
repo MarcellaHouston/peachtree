@@ -61,21 +61,6 @@ struct TodayTasksView: View {
     ]
     */
 
-    //this property counts how many tasks are currently completed
-    //it filters the task list and returns the number of tasks marked as done
-    private var completedTaskCount: Int {
-        ApiCall.shared.tasks.filter { $0.isCompleted }.count
-    }
-
-    //this gives the filled width for the progress bar
-    private var progressWidth: CGFloat {
-        if ApiCall.shared.tasks.isEmpty {
-            return 0
-        }
-
-        return 250 * CGFloat(completedTaskCount) / CGFloat(ApiCall.shared.tasks.count)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             //header at the top of the screen containing the status bar and profile section
@@ -122,33 +107,7 @@ struct TodayTasksView: View {
 
                 //progress section that shows how many tasks have been completed
                 //includes a text summary and a visual progress bar
-                VStack(spacing: 8) {
-                    Text("\(completedTaskCount)/\(ApiCall.shared.tasks.count) tasks completed")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.black)
-                    
-                    //outer capsule forms the base of the progress bar
-                    //a lighter purple capsule sits inside it as the background
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: 264, height: 32)
-                        .overlay {
-                            Capsule()
-                                .fill(Color(red: 0.77, green: 0.69, blue: 0.94))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 4)
-                        }
-                        //the darker purple capsule represents actual progress
-                        //its width changes dynamically based on completed tasks
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(Color(red: 0.52, green: 0.21, blue: 0.95))
-                                .frame(width: progressWidth, height: 24)
-                                .padding(.leading, 7)
-                        }
-                }
-                .padding(.top, 10)
-                .padding(.bottom, 18)
+                TaskProgressBar(completedTaskCount: ApiCall.shared.tasks.filter { $0.isCompleted }.count, totalTaskCount: ApiCall.shared.tasks.count)
             }
             //this section fills the remaining screen space with the light background color
             //it visually separates the task area from the header and navigation bar
