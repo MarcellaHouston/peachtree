@@ -116,6 +116,8 @@ class LLMClient:
         GENERATE_TASKS = 1
         GENERATE_TALKING_POINTS = 2
         SUMMARIZE_TRANSCRIPTION = 3
+        GENERATE_WEEKLY_SUGGESTIONS = 4
+        GENERATE_GUIDANCE_SUGGESTIONS = 5
 
     def __init__(
         self,
@@ -123,6 +125,14 @@ class LLMClient:
         max_tokens=4096,
         user_id: str = "Reach staff",
     ):
+        self.files = {
+            self.UseCase.GENERATE_TASKS: "generate_tasks.txt",
+            self.UseCase.GENERATE_TALKING_POINTS: "generate_talking_points.txt",
+            self.UseCase.SUMMARIZE_TRANSCRIPTION: "summarize_transcription.txt",
+            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: "generate_weekly_suggestions.txt",
+            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: "generate_guidance_suggestions.txt",
+        }
+
         self.use_case = use_case
         self.user_id = user_id
 
@@ -130,38 +140,55 @@ class LLMClient:
             self.UseCase.GENERATE_TASKS: 3,
             self.UseCase.GENERATE_TALKING_POINTS: 3,
             self.UseCase.SUMMARIZE_TRANSCRIPTION: 2,
+            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: 3,
+            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: 3,
         }[self.use_case]
 
         prompts = Path(__file__).parent / "prompts"
-        if use_case == self.UseCase.GENERATE_TASKS:
-            file_path = prompts / "generate_tasks.txt"
-            self.rag = True
-            self.schema = [
-                "task",
-                "reasoning",
-                "weekly_frequency",
-                "weight",
-                "days_of_week",
-                "start_date",
-                "end_date",
-                "impetus",
-            ]
-        elif use_case == self.UseCase.GENERATE_TALKING_POINTS:
-            file_path = prompts / "generate_talking_points.txt"
-            self.rag = False
-            self.schema = [
-                "document",
-                "verbose_summary",
-                "static_trait",
-                "impact_days",
-            ]
-        elif use_case == self.UseCase.SUMMARIZE_TRANSCRIPTION:
-            file_path = prompts / "summarize_transcription.txt"
-            self.rag = False
-            self.schema = []
+        match use_case:
+            case self.UseCase.GENERATE_TASKS:
+                file_path = prompts / self.files[self.UseCase.GENERATE_TASKS]
+                self.rag = True
+                self.schema = [
+                    "task",
+                    "reasoning",
+                    "weekly_frequency",
+                    "weight",
+                    "days_of_week",
+                    "start_date",
+                    "end_date",
+                    "impetus",
+                ]
+            case self.UseCase.GENERATE_TALKING_POINTS:
+                file_path = prompts / self.files[self.UseCase.GENERATE_TALKING_POINTS]
+                self.rag = False
+                self.schema = [
+                    "document",
+                    "verbose_summary",
+                    "static_trait",
+                    "impact_days",
+                ]
+            case self.UseCase.SUMMARIZE_TRANSCRIPTION:
+                file_path = prompts / self.files[self.UseCase.SUMMARIZE_TRANSCRIPTION]
+                self.rag = False
+                self.schema = []
+            case self.UseCase.GENERATE_WEEKLY_SUGGESTIONS:
+                file_path = (
+                    prompts / self.files[self.UseCase.GENERATE_WEEKLY_SUGGESTIONS]
+                )
+                self.rag = True
+                self.schema = []
+                # TODO finish stub
+            case self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
+                file_path = (
+                    prompts / self.files[self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS]
+                )
+                self.rag = True
+                self.schema = []
+                # TODO finish stub
+            case _:
+                raise ValueError("Invalid use case specified for LLMClient.")
 
-        else:
-            raise ValueError("Invalid use case for LLM Client.")
         with open(file_path, "r") as f:
             instructions = f.read()
 
@@ -180,6 +207,8 @@ class LLMClient:
         if self.use_case in [
             self.UseCase.GENERATE_TASKS,
             self.UseCase.GENERATE_TALKING_POINTS,
+            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
+            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
         ]:
             self.context("Today's date: " + time.strftime("%Y-%m-%d"))
         for _ in range(max_retries):
@@ -194,14 +223,13 @@ class LLMClient:
                 flush=False,
                 rag_query=rag_query,
             )
-            if self.use_case == self.UseCase.GENERATE_TASKS:
-                print("CONTEXT FOR TASK GENERATION:")
-                print(self.model.context)
 
             # validate response is in correct JSON format
             if self.use_case in [
                 self.UseCase.GENERATE_TASKS,
                 self.UseCase.GENERATE_TALKING_POINTS,
+                self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
+                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
             ]:
                 try:
                     json_response = loads(response)
@@ -320,6 +348,21 @@ class LLMClient:
                                 "Error: The previous response had an invalid weekly_frequency value. Please provide a new response with weekly_frequency as an integer between 1 and the number of days in days_of_week ("
                                 + str(len(days_of_week))
                                 + ")."
+                            )
+
+                        # validate difficulty_score is between 1 and 100, inclusive
+                        difficulty_score = json_obj.get("difficulty_score")
+                        if difficulty_score is not None and (
+                            not isinstance(difficulty_score, int)
+                            or difficulty_score < 1
+                            or difficulty_score > 100
+                        ):
+                            print(
+                                f"Invalid difficulty_score value: {difficulty_score}. Must be an integer between 1 and 100."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid difficulty_score value. Please provide a new response with difficulty_score as an integer between 1 and 100."
                             )
 
                 case self.UseCase.GENERATE_TALKING_POINTS:

@@ -464,7 +464,7 @@ def eod_summary():
 
     # Setup LLM with eod_summary instructions
     llm_model = LLMClient(
-        use_case=LLMClient.UseCase.SUMMARIZE_EOD_TRANSCRIPTION, user_id=userid
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
     )
 
     # Get user's daily tasks
