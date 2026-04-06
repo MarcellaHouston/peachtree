@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
+import score
 from sql_db import Database
 from bedrock.llm import LLMClient
 import transcription.aws as aws
@@ -65,9 +66,8 @@ def check_auth(user_id: str, auth: str, check=False) -> bool:
     if check:
         # check to make sure authentication key from request matches user's token
         token = db.get_user_token(user_id)
-        out = (auth == token)
+        out = auth == token
     return out
-
 
 
 @app.route("/")
@@ -86,12 +86,12 @@ def get_goals():
     # If no dates are provided, defaults to goals active in the past 7 days.
     # If user_id is provided, also runs the weekly schedule check.
     data = request.get_json(silent=True) or {}
-    
+
     user_id = data.get("user_id")
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -144,15 +144,15 @@ def create_goal():
     data = request.get_json()
     if not data or "goal" not in data:
         return jsonify({"error": "Missing 'goal' in request body"}), 400
-    
+
     user_id = data.get("user_id")
     if not "user_id" in data:
         return jsonify({"error": "Missing user_id in request"}), 401
-    
+
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "No authentication key provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -216,6 +216,8 @@ def create_goal():
                     task["start_date"],
                     task["end_date"],
                     task["impetus"],
+                    task["difficulty_score"],
+                    score.calculate_task_rating(tasks),
                 ],
             )
         schedule = db.assign_weekly_tasks(
@@ -245,14 +247,14 @@ def update_goal():
 
     if not goal_id:
         return jsonify({"error": "Missing goal id for update"}), 400
-    
+
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 401
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "No authentication key provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -287,7 +289,7 @@ def snooze_goal():
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -310,7 +312,7 @@ def delete_goal():
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -335,10 +337,10 @@ def complete_task():
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to true when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
-    
+
     db.set_task_status(user_id, task_id, status)
     return "", 204
 
@@ -360,11 +362,11 @@ def weekly_schedule():
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
-    
+
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -381,11 +383,11 @@ def daily_goal_digest():
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
-    
+
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False) # change to True when done testing
+    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -423,7 +425,7 @@ def eod_summary():
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"Authentication key not provided"}), 401
-    auth = check_auth(userid, auth_key, False) # change to true when done testing
+    auth = check_auth(userid, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 
@@ -462,7 +464,7 @@ def eod_summary():
 
     # Setup LLM with eod_summary instructions
     llm_model = LLMClient(
-        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+        use_case=LLMClient.UseCase.SUMMARIZE_EOD_TRANSCRIPTION, user_id=userid
     )
 
     # Get user's daily tasks
@@ -496,7 +498,7 @@ def save_convo():
     auth_key = request.headers.get("authenticate")
     if not auth_key:
         return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(userid, auth_key, False) # change to true when done testing
+    auth = check_auth(userid, auth_key, False)  # change to true when done testing
     if not auth:
         return jsonify({"error": "User isn't authenticated"}), 401
 

@@ -20,6 +20,7 @@ Each object in the array must contain these exact keys:
 "start_date": (string) The start date of the task in YYYY-MM-DD format.
 "end_date": (string) The projected completion date in YYYY-MM-DD format.
 "impetus": (integer) A value from 1 to 5 representing the "Ease of Starting" (1=High Friction/Hard to start, 5=Low Friction/Automatic).
+"difficulty_score" (integer) A number strictly between 1 and 100 representing the difficulty of doing this task each iteration, separate from the ease of starting (impetus). 1 represents trivially easy, and 100 represents extremely hard. This rating should generally be normalized about 50, along a bell curve.
 EXAMPLE CONSIDERATIONS FOR STRATEGY FOR RAG INTEGRATION:
 If User Context mentions a "broken bone" (static trait), ensure tasks are low-impact.
 If User Context mentions "enjoys running" (non-static trait), consider incorporate related activities to increase impetus if applicable.
