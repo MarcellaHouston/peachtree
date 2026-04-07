@@ -390,6 +390,18 @@ class Database:
                 )
         return True
 
+    def get_user_token(self, user_id: str) -> str:
+        # Get the token used for authorization for a user
+        row = self._run_param(
+            "SELECT token FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if row:
+            token = row[0]
+            print("User %s's token is %s\n", user_id, token)
+            return token
+        else:
+            return f"ERROR: TOKEN FOR USER {user_id} NOT FOUND\n"
+
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
         assert table in self.schema
