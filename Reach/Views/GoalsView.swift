@@ -175,7 +175,16 @@ struct GoalsView: View {
                     .ignoresSafeArea()
 
                 EditGoalView(goal: selectedGoal, isShowing: $showEditGoal)
-            } else if showNewGoal {
+            }
+            
+            else if showGuidance, let selectedGoal, currentMode == .guidance {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+
+                GuidancePopupView(goal: selectedGoal, isShowing: $showGuidance)
+            }
+            
+            else if showNewGoal {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
 
