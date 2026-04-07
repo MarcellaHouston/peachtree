@@ -177,9 +177,9 @@ class Database:
         # Saves the resulting schedule to the user's week_schedule column and updates
         # each task's days_of_week column.
         from datetime import date
-
+        # if a schedule already exists for this week, subtract the number from total
         today = date.today().isoformat()
-
+        
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
         row = self._run_param(
             "SELECT week_availability FROM users WHERE username = ?", (user_id,)
@@ -190,6 +190,40 @@ class Database:
         avail_days = [k for k in avail if k in _ALL_DAYS]  # ordered available days
         if not avail_days:
             return {}
+
+        # If a schedule already exists for THIS same week (e.g. create_goal
+        # triggered a mid-week rebuild), tally how many instances each goal
+        # already contributed to cumulative all_tasks. After the rebuild we
+        # apply only the *delta* so a same-week re-assignment doesn't
+        # double-count. On a true new-week rollover (different curr_week_start)
+        # the previous week's contribution is permanent history, so we leave
+        # prev_all_counts empty and add the full new totals.
+        # Note: we deliberately do NOT touch completed_tasks here — the user's
+        # historical progress should be preserved across rebuilds.
+        prev_row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        prev_all_counts: dict = {}
+        if prev_row and prev_row[0]:
+            prev_sched = json.loads(prev_row[0])
+            if prev_sched.get("curr_week_start") == this_sunday:
+                prev_task_ids = set()
+                for day in _ALL_DAYS:
+                    for e in prev_sched.get(day, []):
+                        prev_task_ids.add(e["task_id"])
+                if prev_task_ids:
+                    placeholders = ",".join(["?"] * len(prev_task_ids))
+                    tid_to_gid = dict(
+                        self._run_param(
+                            f"SELECT task_id, goal_id FROM tasks WHERE task_id IN ({placeholders})",
+                            list(prev_task_ids),
+                        ).fetchall()
+                    )
+                    for day in _ALL_DAYS:
+                        for e in prev_sched.get(day, []):
+                            gid = tid_to_gid.get(e["task_id"])
+                            if gid is not None:
+                                prev_all_counts[gid] = prev_all_counts.get(gid, 0) + 1
 
         # Fetch all tasks for active goals (active_date passed, end_date not yet reached),
         # sorted highest impetus first so urgent tasks get the best day slots
@@ -237,9 +271,14 @@ class Database:
         )
         self._commit()
 
-        # Bump cumulative all_tasks for each goal that just had instances scheduled
-        for gid, n_instances in goal_instance_counts.items():
-            self.adjust_goal_completion(gid, 0, n_instances)
+        # Apply per-goal all_tasks deltas. For a same-week rebuild, prev_all_counts
+        # holds what was already counted, so the delta is the difference. For a new
+        # week (or first-ever schedule), prev_all_counts is empty and the delta
+        # equals the full new total.
+        for gid in set(goal_instance_counts) | set(prev_all_counts):
+            delta = goal_instance_counts.get(gid, 0) - prev_all_counts.get(gid, 0)
+            if delta != 0:
+                self.adjust_goal_completion(gid, 0, delta)
 
         return schedule
 

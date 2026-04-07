@@ -931,6 +931,57 @@ class TestGoalCompletion(IntegrationTestCase):
         second = self._completion(goal_id)["all_tasks"]
         self.assertEqual(second, 4)
 
+    def test_same_week_rebuild_does_not_double_count(self):
+        # When create_goal triggers assign_weekly_tasks mid-week, the existing
+        # goals' instances are already counted in all_tasks. Re-running
+        # assign_weekly_tasks in the same week must not double-count them.
+        # A new goal added during the same-week rebuild should still be counted.
+        self._insert_user(availability={"monday": 5, "wednesday": 5})
+        self.create_goal(name="Goal A", end_date="2027-12-31")
+        goal_a = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_a, weekly_frequency=2)
+
+        # First scheduling — goal A picks up its 2 instances
+        self.real_db.assign_weekly_tasks("alice", self.real_db.this_sunday())
+        self.assertEqual(self._completion(goal_a)["all_tasks"], 2)
+
+        # User creates a second goal mid-week; create_goal would re-run
+        # assign_weekly_tasks. Simulate that here.
+        self.create_goal(name="Goal B", end_date="2027-12-31")
+        goal_b = self.real_db.select("goals", "all")[1][0]
+        self._insert_task(goal_b, weekly_frequency=1)
+
+        self.real_db.assign_weekly_tasks("alice", self.real_db.this_sunday())
+
+        # Goal A must NOT have grown — its 2 instances were already counted
+        self.assertEqual(self._completion(goal_a)["all_tasks"], 2)
+        # Goal B should be counted normally
+        self.assertEqual(self._completion(goal_b)["all_tasks"], 1)
+
+    def test_same_week_rebuild_preserves_completed_progress(self):
+        # User completes a task, then a mid-week rebuild happens. The rebuild
+        # resets the schedule entries to completed=False, but the cumulative
+        # completed_tasks counter must be preserved (the user's historical
+        # progress shouldn't vanish on a re-assign).
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=1)
+        self.real_db.assign_weekly_tasks("alice", self.real_db.this_sunday())
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+        self.post_json(
+            "/tasks/complete",
+            {"user_id": "alice", "task_id": task_id, "status": True},
+        )
+        self.assertEqual(self._completion(goal_id)["completed_tasks"], 1)
+
+        # Simulate a mid-week rebuild
+        self.real_db.assign_weekly_tasks("alice", self.real_db.this_sunday())
+
+        c = self._completion(goal_id)
+        self.assertEqual(c["all_tasks"], 1)
+        self.assertEqual(c["completed_tasks"], 1)
+
     def test_multiple_goals_tracked_independently(self):
         # Completing a task from goal A must not touch goal B's counters.
         self._insert_user()
