@@ -81,6 +81,34 @@ class Database:
 
         return True
 
+    def adjust_goal_completion(
+        self, goal_id: int, completed_delta: int, all_delta: int
+    ) -> None:
+        # Apply deltas to a goal's persistent completion counters and recompute %.
+        # Counters are clamped at 0 so they never go negative even on stale undos.
+        row = self._run_param(
+            "SELECT completion FROM goals WHERE id = ?", (goal_id,)
+        ).fetchone()
+        if not row:
+            return
+        c = (
+            json.loads(row[0])
+            if row[0]
+            else {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0}
+        )
+        c["completed_tasks"] = max(0, c["completed_tasks"] + completed_delta)
+        c["all_tasks"] = max(0, c["all_tasks"] + all_delta)
+        c["percent_completed"] = (
+            round(c["completed_tasks"] / c["all_tasks"] * 100)
+            if c["all_tasks"] > 0
+            else 0
+        )
+        self._run_param(
+            "UPDATE goals SET completion = ? WHERE id = ?",
+            (json.dumps(c), goal_id),
+        )
+        self._commit()
+
     def snooze(self, goal_id: int, weeks: int) -> bool:
         # Push a goal's active_date forward by N weeks from today, then snap back
         # to the nearest past Sunday. Also removes the goal's tasks from the
@@ -114,16 +142,31 @@ class Database:
             ).fetchone()
             if sched_row and sched_row[0]:
                 schedule = json.loads(sched_row[0])
+                # Count how many of this goal's task instances we're removing,
+                # and how many were already marked complete — these need to be
+                # rolled back from the goal's cumulative completion counters.
+                removed_total = 0
+                removed_completed = 0
                 for day in _ALL_DAYS:
                     if day in schedule:
-                        schedule[day] = [
-                            e for e in schedule[day] if e["task_id"] not in task_ids
-                        ]
+                        kept = []
+                        for e in schedule[day]:
+                            if e["task_id"] in task_ids:
+                                removed_total += 1
+                                if e.get("completed"):
+                                    removed_completed += 1
+                            else:
+                                kept.append(e)
+                        schedule[day] = kept
                 self._run_param(
                     "UPDATE users SET week_schedule = ? WHERE username = ?",
                     (json.dumps(schedule), user_id),
                 )
                 self._commit()
+                if removed_total:
+                    self.adjust_goal_completion(
+                        goal_id, -removed_completed, -removed_total
+                    )
 
         return True
 
@@ -152,7 +195,7 @@ class Database:
         # sorted highest impetus first so urgent tasks get the best day slots
         tasks = self._run_param(
             """
-            SELECT t.task_id, t.weekly_frequency, t.impetus
+            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
@@ -164,13 +207,19 @@ class Database:
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
         n = len(avail_days)
+        # Track how many instances each goal gets so we can bump its
+        # cumulative all_tasks counter once at the end.
+        goal_instance_counts: dict = {}
 
-        for task_id, freq, _ in tasks:
+        for task_id, freq, _, goal_id in tasks:
             freq = min(freq, n)  # can't schedule more times than available days
             step = max(1, n // freq)  # space out slots evenly across available days
             chosen = [avail_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
+            goal_instance_counts[goal_id] = (
+                goal_instance_counts.get(goal_id, 0) + len(chosen)
+            )
             # Persist which days this task is assigned to
             self._run_param(
                 "UPDATE tasks SET days_of_week = ? WHERE task_id = ?",
@@ -187,6 +236,11 @@ class Database:
             (json.dumps(schedule), user_id),
         )
         self._commit()
+
+        # Bump cumulative all_tasks for each goal that just had instances scheduled
+        for gid, n_instances in goal_instance_counts.items():
+            self.adjust_goal_completion(gid, 0, n_instances)
+
         return schedule
 
     def this_sunday(self) -> str:
@@ -263,6 +317,8 @@ class Database:
 
     def set_task_status(self, user_id: str, task_id: int, status: bool) -> bool:
         # Mark a task as done or not-done in the user's current week_schedule.
+        # Also bumps the parent goal's cumulative completion counter, but only
+        # if the entry's status actually changed (so a no-op call is a no-op).
         row = self._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
         ).fetchone()
@@ -272,15 +328,27 @@ class Database:
         from datetime import date
 
         today_name = _ALL_DAYS[(date.today().weekday()) % 7]
+        changed = False
         for entry in schedule.get(today_name, []):
             if entry["task_id"] == task_id:
-                entry["completed"] = status
+                if entry.get("completed") != status:
+                    entry["completed"] = status
+                    changed = True
                 break
         self._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?",
             (json.dumps(schedule), user_id),
         )
         self._commit()
+
+        if changed:
+            goal_row = self._run_param(
+                "SELECT goal_id FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if goal_row:
+                self.adjust_goal_completion(
+                    goal_row[0], 1 if status else -1, 0
+                )
         return True
 
     def delete(self, table: str, id: int):

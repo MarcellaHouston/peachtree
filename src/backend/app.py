@@ -98,6 +98,11 @@ def get_goals():
             "difficulty": row[8],
             "category": row[9],
             "days_of_week": row[10],
+            "completion": json.loads(row[11]) if row[11] else {
+                "completed_tasks": 0,
+                "all_tasks": 0,
+                "percent_completed": 0,
+            },
             "isPaused": parse_date(active_date) > date.today(),
         }
 
@@ -113,6 +118,12 @@ def get_goals():
         results.append(goal)
 
     response = {"goals": results}
+
+    user_id = data.get("user_id")
+    if user_id:
+        new_week, schedule = db.check_new_week(user_id)
+        response["new_week"] = new_week
+        response["schedule"] = schedule
 
     return jsonify(response)
 
@@ -139,8 +150,9 @@ def create_goal():
     # active_date starts equal to start_date and can be pushed forward via snooze
     goal["active_date"] = goal["start_date"]
 
-    if goal.get("days_of_week")[-1] == ",":
-        goal["days_of_week"] = goal["days_of_week"][:-1]
+    dow = goal.get("days_of_week")
+    if dow and dow[-1] == ",":
+        goal["days_of_week"] = dow[:-1]
 
     goal_id = db.insert(
         "goals",
@@ -155,6 +167,7 @@ def create_goal():
             goal["difficulty"],
             goal.get("category"),
             goal.get("days_of_week"),
+            json.dumps({"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0}),
         ],
     )
 
@@ -187,11 +200,12 @@ def create_goal():
                     task["impetus"],
                 ],
             )
-        schedule = db.assign_weekly_tasks(
-            user_id=goal["user_id"], this_sunday=db.this_sunday()
-        )
-        logger.info("generate new schedule")
-        logger.info(str(schedule))
+        if tasks:
+            schedule = db.assign_weekly_tasks(
+                user_id=goal["user_id"], this_sunday=db.this_sunday()
+            )
+            logger.info("generate new schedule")
+            logger.info(str(schedule))
     else:
         logger.info("Error with LLM")
         return (

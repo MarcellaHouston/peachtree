@@ -34,6 +34,21 @@ def make_real_db():
 # ---------------------------------------------------------------------------
 
 
+class _FakeLLMClient:
+    """Stand-in for LLMClient that avoids any network/AWS calls in tests.
+    Returns an empty task list with valid=True so /goals/create succeeds
+    without inserting any tasks; tests that need tasks insert them directly
+    via _insert_task."""
+    class UseCase:
+        GENERATE_TASKS = "GENERATE_TASKS"
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def query(self, *args, **kwargs):
+        return [], True, 0
+
+
 class IntegrationTestCase(unittest.TestCase):
     def setUp(self):
         flask_app.config["TESTING"] = True
@@ -45,8 +60,13 @@ class IntegrationTestCase(unittest.TestCase):
         self.db_patch = patch.object(app_module, "db", self.real_db)
         self.db_patch.start()
 
+        # Replace LLMClient with a fake so /goals/create doesn't reach AWS.
+        self.llm_patch = patch.object(app_module, "LLMClient", _FakeLLMClient)
+        self.llm_patch.start()
+
     def tearDown(self):
-        # Restore the original app.db and close the in-memory connection
+        # Restore patches and close the in-memory connection
+        self.llm_patch.stop()
         self.db_patch.stop()
         self.real_db.db.close()
 
@@ -545,7 +565,7 @@ class TestDailyGoalDigest(IntegrationTestCase):
         # Insert user, goal, and task, then manually set today's day in week_schedule
         from datetime import date
         today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-            (date.today().weekday() + 1) % 7
+            date.today().weekday()
         ]
         self.real_db._run_param(
             "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
@@ -564,10 +584,15 @@ class TestDailyGoalDigest(IntegrationTestCase):
         self.real_db._commit()
         task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
 
-        # Write a week_schedule that places this task on today
+        # Write a week_schedule that places this task on today.
+        # curr_week_start must match the real current Sunday so check_new_week
+        # sees the same week and returns the cached schedule without wiping it.
+        from datetime import timedelta
+        days_since_sunday = (date.today().weekday() + 1) % 7
+        curr_sunday = (date.today() - timedelta(days=days_since_sunday)).isoformat()
         all_days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
         schedule = json.dumps({
-            "curr_week_start": "2026-03-15",
+            "curr_week_start": curr_sunday,
             today_name: [{"task_id": task_id, "completed": False}],
             **{d: [] for d in all_days if d != today_name},
         })
@@ -601,7 +626,7 @@ class TestDailyGoalDigest(IntegrationTestCase):
     def test_day_field_matches_today(self):
         from datetime import date
         today_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][
-            (date.today().weekday() + 1) % 7
+            date.today().weekday()
         ]
         self._setup_user_with_task()
         body = self.post_json("/daily_goal_digest", {"user_id": "alice"}).get_json()
@@ -662,7 +687,7 @@ class TestDeleteGoalIntegration(IntegrationTestCase):
 
 
 # ---------------------------------------------------------------------------
-# POST /goals/complete  (integration)
+# POST /tasks/complete  (integration)
 # ---------------------------------------------------------------------------
 
 
@@ -670,7 +695,7 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
     def _setup(self):
         # Insert user + goal + task, set a week_schedule with the task on today
         today_name = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][
-            (date.today().weekday() + 1) % 7
+            date.today().weekday()
         ]
         self.real_db._run_param(
             "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
@@ -695,7 +720,7 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
 
     def _get_completed(self):
         today_name = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][
-            (date.today().weekday() + 1) % 7
+            date.today().weekday()
         ]
         row = self.real_db._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
@@ -705,26 +730,26 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
 
     def test_mark_task_done(self):
         task_id = self._setup()
-        resp = self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": True})
+        resp = self.post_json("/tasks/complete", {"user_id": "alice", "task_id": task_id, "status": True})
         self.assertEqual(resp.status_code, 204)
         self.assertTrue(self._get_completed()[task_id])
 
     def test_mark_task_undone(self):
         task_id = self._setup()
-        self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": True})
-        self.post_json("/goals/complete", {"user_id": "alice", "task_id": task_id, "status": False})
+        self.post_json("/tasks/complete", {"user_id": "alice", "task_id": task_id, "status": True})
+        self.post_json("/tasks/complete", {"user_id": "alice", "task_id": task_id, "status": False})
         self.assertFalse(self._get_completed()[task_id])
 
     def test_missing_user_id_returns_400(self):
-        resp = self.post_json("/goals/complete", {"task_id": 1, "status": True})
+        resp = self.post_json("/tasks/complete", {"task_id": 1, "status": True})
         self.assertEqual(resp.status_code, 400)
 
     def test_missing_task_id_returns_400(self):
-        resp = self.post_json("/goals/complete", {"user_id": "alice", "status": True})
+        resp = self.post_json("/tasks/complete", {"user_id": "alice", "status": True})
         self.assertEqual(resp.status_code, 400)
 
     def test_missing_status_returns_400(self):
-        resp = self.post_json("/goals/complete", {"user_id": "alice", "task_id": 1})
+        resp = self.post_json("/tasks/complete", {"user_id": "alice", "task_id": 1})
         self.assertEqual(resp.status_code, 400)
 
     def test_completed_initialized_false_on_assign(self):
@@ -742,6 +767,195 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
         for day in all_days:
             for entry in schedule.get(day, []):
                 self.assertFalse(entry["completed"])
+
+
+# ---------------------------------------------------------------------------
+# Goal completion history (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestGoalCompletion(IntegrationTestCase):
+    _ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    def _today_name(self):
+        return self._ALL_DAYS[date.today().weekday()]
+
+    def _completion(self, goal_id):
+        row = self.real_db._run_param(
+            "SELECT completion FROM goals WHERE id = ?", (goal_id,)
+        ).fetchone()
+        return json.loads(row[0])
+
+    def _insert_user(self, username="alice", availability=None):
+        avail = json.dumps(availability or {self._today_name(): 5})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
+            (username, "pw", avail),
+        )
+        self.real_db._commit()
+
+    def test_new_goal_completion_defaults_zero(self):
+        # A freshly created goal (with the fake LLM yielding no tasks) should
+        # have a completion object with zero counters and zero percent.
+        self.create_goal()
+        body = self.post_json("/goals", {}).get_json()
+        self.assertEqual(
+            body["goals"][0]["completion"],
+            {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0},
+        )
+
+    def test_all_tasks_incremented_on_weekly_assign(self):
+        # Scheduling a task with weekly_frequency=2 over 2 available days should
+        # bump the parent goal's all_tasks by 2 (one per scheduled instance).
+        self._insert_user(availability={"monday": 5, "wednesday": 5})
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=2)
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        c = self._completion(goal_id)
+        self.assertEqual(c["all_tasks"], 2)
+        self.assertEqual(c["completed_tasks"], 0)
+        self.assertEqual(c["percent_completed"], 0)
+
+    def test_completed_tasks_increments_on_complete(self):
+        # Schedule one task on today via /schedule/weekly, mark it complete,
+        # and verify the goal counters reflect 1/1 = 100%.
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=1)
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+        self.post_json(
+            "/tasks/complete",
+            {"user_id": "alice", "task_id": task_id, "status": True},
+        )
+        c = self._completion(goal_id)
+        self.assertEqual(c["completed_tasks"], 1)
+        self.assertEqual(c["all_tasks"], 1)
+        self.assertEqual(c["percent_completed"], 100)
+
+    def test_completed_tasks_decrements_on_undo(self):
+        # Marking a task done then undone should leave completed_tasks at 0.
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=1)
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+        self.post_json("/tasks/complete", {"user_id": "alice", "task_id": task_id, "status": True})
+        self.post_json("/tasks/complete", {"user_id": "alice", "task_id": task_id, "status": False})
+        c = self._completion(goal_id)
+        self.assertEqual(c["completed_tasks"], 0)
+        self.assertEqual(c["percent_completed"], 0)
+
+    def test_percent_computed_correctly(self):
+        # Schedule 4 separate tasks (1 instance each) on today, mark 1 complete,
+        # and verify percent_completed == 25.
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        for _ in range(4):
+            self._insert_task(goal_id, weekly_frequency=1)
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        first_task_id = self.real_db._run(
+            "SELECT task_id FROM tasks ORDER BY task_id"
+        ).fetchone()[0]
+        self.post_json(
+            "/tasks/complete",
+            {"user_id": "alice", "task_id": first_task_id, "status": True},
+        )
+        c = self._completion(goal_id)
+        self.assertEqual(c["all_tasks"], 4)
+        self.assertEqual(c["completed_tasks"], 1)
+        self.assertEqual(c["percent_completed"], 25)
+
+    def test_snooze_decrements_counts(self):
+        # Pre-seed a schedule with 2 instances of a goal's task (1 completed)
+        # and a corresponding completion of {1, 2, 50}. Snoozing should remove
+        # both instances and roll the counters back to {0, 0, 0}.
+        self._insert_user(availability={"monday": 5})
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+        task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
+        schedule = {
+            "curr_week_start": "2026-03-22",
+            "monday": [
+                {"task_id": task_id, "completed": True},
+                {"task_id": task_id, "completed": False},
+            ],
+            "tuesday": [], "wednesday": [], "thursday": [],
+            "friday": [], "saturday": [], "sunday": [],
+        }
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(schedule), "alice"),
+        )
+        self.real_db._run_param(
+            "UPDATE goals SET completion = ? WHERE id = ?",
+            (json.dumps({"completed_tasks": 1, "all_tasks": 2, "percent_completed": 50}), goal_id),
+        )
+        self.real_db._commit()
+
+        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+
+        c = self._completion(goal_id)
+        self.assertEqual(c, {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0})
+
+    def test_new_week_adds_to_history_cumulatively(self):
+        # Schedule once, then rewind curr_week_start in the DB to simulate the
+        # next week rolling over, and schedule again. all_tasks should double.
+        self._insert_user(availability={"monday": 5, "wednesday": 5})
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=2)
+
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        first = self._completion(goal_id)["all_tasks"]
+        self.assertEqual(first, 2)
+
+        # Rewind curr_week_start so check_new_week believes a new week began
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        sched = json.loads(row[0])
+        sched["curr_week_start"] = "1999-01-03"
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(sched), "alice"),
+        )
+        self.real_db._commit()
+
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        second = self._completion(goal_id)["all_tasks"]
+        self.assertEqual(second, 4)
+
+    def test_multiple_goals_tracked_independently(self):
+        # Completing a task from goal A must not touch goal B's counters.
+        self._insert_user()
+        self.create_goal(name="Goal A", end_date="2027-12-31")
+        self.create_goal(name="Goal B", end_date="2027-12-31")
+        rows = self.real_db.select("goals", "all")
+        goal_a, goal_b = rows[0][0], rows[1][0]
+        self._insert_task(goal_a, weekly_frequency=1)
+        self._insert_task(goal_b, weekly_frequency=1)
+
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+
+        # Find which task belongs to goal A and complete it
+        task_a = self.real_db._run_param(
+            "SELECT task_id FROM tasks WHERE goal_id = ?", (goal_a,)
+        ).fetchone()[0]
+        self.post_json(
+            "/tasks/complete",
+            {"user_id": "alice", "task_id": task_a, "status": True},
+        )
+
+        ca = self._completion(goal_a)
+        cb = self._completion(goal_b)
+        self.assertEqual(ca["completed_tasks"], 1)
+        self.assertEqual(cb["completed_tasks"], 0)
 
 
 if __name__ == "__main__":
