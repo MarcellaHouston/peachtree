@@ -16,7 +16,10 @@ struct GoalOptions: View {
     @State private var newEndDate = Date()
     
     @State private var showingCategoryField = false
-    @State private var newCategory = ""    
+    @State private var newCategory = ""
+    
+    //from Audiomanager.swift
+    @State private var audioManager = AudioManager()
     
     var body: some View {
         // Scrollable content options
@@ -43,9 +46,37 @@ struct GoalOptions: View {
                                 .padding(.bottom, -5)
                             TextField("E.g. Read 10 pages a day", text: $goal.title)
                         }
-                        Circle()
-                            .frame(width: 34)
+                        VStack(alignment: .center) {
+                            // mic button
+                            // hide button while the NLP is happening
+                            if (!audioManager.isUploading) {
+                                Button(action: { audioManager.toggleRecording() }) {
+                                    Image(systemName: "mic.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.white)
+                                        .frame(width: 35, height: 35)
+                                    
+                                        // color changes based on audio manager state
+                                        .background(audioManager.isRecording ? .red : Color(red: 0.45, green: 0.35, blue: 0.65))
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)
+                                }
+                                .buttonStyle(MicButtonStyle())
+                            }
                             
+                            // while waiting for LLM response, shows the user "Creating a plan"
+                            if audioManager.isUploading {
+                                ProgressView("Parsing your input...")
+                                    .font(.system(size: 10, weight: .regular))
+                                
+                            // if user is still recording, displays this
+                            } else if (audioManager.isRecording){
+                                Text("Listening...")
+                                    .font(.system(size: 10, weight: .regular))
+                                    .foregroundColor(audioManager.isRecording ? .red : .black)
+                            }
+                        }
+                        
                     }
                     .padding(.horizontal, 20)
                     Divider()
