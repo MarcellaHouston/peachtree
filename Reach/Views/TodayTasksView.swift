@@ -189,35 +189,21 @@ private struct TodayTaskRow: View {
             }
             .buttonStyle(.plain)
 
-            //task content button
-            //this displays the task name inside the purple rounded rectangle
-            Button {
-                onTaskTap()
-            } label: {
-                HStack(spacing: 0) {
-                    //spacers keep the text centered within the button
-                    Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-                    Text(task.title)
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundColor(.black)
-                        .lineLimit(1)
+                Text(task.title)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(.black)
+                    //.lineLimit(1)
 
-                    Spacer(minLength: 0)
-
-                    //chevron icon indicates that tapping the task may lead to more details
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.black)
-                        .padding(.trailing, 16)
-                }
-                //rounded purple background for the task button
-                .frame(height: 46)
-                .frame(maxWidth: .infinity)
-                .background(Color(red: 0.77, green: 0.69, blue: 0.94))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
+            //rounded purple background for the task item
+            .frame(height: 46)
+            .frame(maxWidth: .infinity)
+            .background(Color(red: 0.77, green: 0.69, blue: 0.94))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 }
