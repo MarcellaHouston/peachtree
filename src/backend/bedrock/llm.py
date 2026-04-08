@@ -176,16 +176,14 @@ class LLMClient:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_WEEKLY_SUGGESTIONS]
                 )
-                self.rag = True
-                self.schema = []
-                # TODO finish stub
+                self.rag = False
+                self.schema = ["changes_summary", "suggested_changes"]
             case self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS]
                 )
                 self.rag = True
-                self.schema = []
-                # TODO finish stub
+                self.schema = ["changes_summary", "suggested_changes"]
             case _:
                 raise ValueError("Invalid use case specified for LLMClient.")
 
@@ -214,8 +212,13 @@ class LLMClient:
         for _ in range(max_retries):
             valid = True
             rag_query = ""
-            if self.use_case == self.UseCase.GENERATE_TASKS:
+            if self.use_case in [
+                self.UseCase.GENERATE_TASKS,
+                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
+            ]:
                 rag_query = loads(content).get("goal_name")
+            # elif self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS:
+            #     rag_query = content
             response = self.model.query(
                 content=content,
                 user_id=self.user_id,
