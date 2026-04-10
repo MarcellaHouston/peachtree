@@ -292,7 +292,7 @@ class Database:
             token = row[0]
             return token
         else:
-            raise ValueError(f"Token for user {user_id} not found")
+            return ""
     
     def get_user_id(self, username: str) -> int:
         row = self._run_param(
@@ -300,7 +300,7 @@ class Database:
         ).fetchone()
         if row:
             return row[0]
-        raise ValueError(f"User {username} not found in database")
+        return -1
     
     def check_for_username(self, username: str) -> bool:
         row = self._run_param(
@@ -315,9 +315,9 @@ class Database:
         fetch_data = self._run_param(
             "SELECT id, password FROM users WHERE username = ?", (username)
         ).fetchone()
+        user_data = {"User-ID": "", "password": ""}
         if not fetch_data:
-            raise ValueError(f"User {username} not found in database")
-        user_data = {}
+            return user_data
         user_data['User-ID'] = fetch_data[0]
         user_data['password'] = fetch_data[1]
         return user_data

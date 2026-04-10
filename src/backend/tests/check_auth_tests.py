@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from app import check_auth 
 
-## 1. Success Cases
+# 1. Success Cases
 @patch('app.db')
 def test_check_auth_valid_headers(mock_db):
     """Test that auth passes when both User-ID and Authorization are provided."""
@@ -15,7 +15,7 @@ def test_check_auth_valid_headers(mock_db):
     }
     assert check_auth(headers) is True
 
-## 2. Missing Header Cases
+# 2. Missing Header Cases
 @pytest.mark.parametrize("headers", [
     ({"User-ID": "123"}),                 # Missing Authorization
     ({"Authorization": "Bearer token"}),  # Missing User-ID
@@ -25,7 +25,7 @@ def test_check_auth_missing_headers(headers):
     """Test that auth fails if either required header is missing."""
     assert check_auth(headers) is False
 
-## 3. Testing with Mocked Database
+# 3. Testing with Mocked Database
 @patch('app.db')
 def test_check_auth_token_matching(mock_db):
     """
@@ -49,6 +49,6 @@ def test_check_auth_malformed_bearer(mock_db):
 
     test_headers = {
         "User-ID": "123",
-        "Authorization": "token_without_bearer" # split()[-1] will just be the token
+        "Authorization": "token_without_bearer"
     }
     assert check_auth(test_headers) is True

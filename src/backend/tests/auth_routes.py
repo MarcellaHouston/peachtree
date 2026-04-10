@@ -25,9 +25,7 @@ def mock_db():
 
 def test_signup_success(client, mock_db):
     """Tests signup and ensures User-ID is handled as a simple value"""
-    # Fix for 'list indices must be integers' error:
-    # Ensure this returns exactly what your db.get_user_id returns (likely an int or str)
-    mock_db.get_user_id.return_value = 101 
+    mock_db.get_user_id.return_value = 101
     mock_db.check_for_username.return_value = False
     
     response = client.post('/signup', json={
@@ -45,8 +43,7 @@ def test_login_success(client, mock_db):
     password = "secure_pw"
     hashed = generate_password_hash(password)
     
-    # We MUST return a dict because app.py uses stored_user['password']
-    mock_db.get_login_data.return_value = {
+    mock_db.get_user_login.return_value = {
         "User-ID": 101,
         "password": hashed
     }
@@ -56,8 +53,6 @@ def test_login_success(client, mock_db):
         "password": password
     })
     
-    # If this is still 401, check if your db.get_login_data(username) 
-    # in app.py is actually receiving 'Anthony'
     assert response.status_code == 200
     data = response.get_json()
     assert "Authorization" in data
@@ -82,7 +77,7 @@ def test_signup_duplicate_username(client, mock_db):
     """Test that signup fails if the username already exists in the DB"""
     mock_db.check_for_username.return_value = True  # Simulates finding a user
 
-    # 2. Action: Try to sign up with that same username
+    # Try to sign up with that same username
     response = client.post('/signup', json={
         "username": "Anthony",
         "password": "newpassword123"
@@ -92,5 +87,4 @@ def test_signup_duplicate_username(client, mock_db):
     data = response.get_json()
     assert data["error"] == "Username already exists"
     
-    # Verify that the insert was NEVER called because the check caught it first
     assert not mock_db.insert.called

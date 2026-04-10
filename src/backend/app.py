@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 import logging
 
+CHECK = True
 # Set up logging to output to stdout/stderr
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,11 +68,10 @@ def check_auth(headers: dict) -> bool:
     auth = headers.get("Authorization")
     if not user_id or not auth:
         return False
-    auth = auth.split()[-1]
+    if not CHECK:
+        return True
     token = db.get_user_token(user_id)
-    token = token.split()[-1]
-    out = (auth == token)
-    return out
+    return (auth == token)
 
 
 @app.route("/")
@@ -86,8 +86,8 @@ def hello():
 def login():
     # Frontend should provide username and password
     data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    username = data.get('username').strip()
+    password = data.get('password').strip()
 
     # Demo mode if no username provided
     if not username:
@@ -96,7 +96,8 @@ def login():
         return jsonify({"error": "Missing password field in request"}), 400
     
     # Get user's stored password and id from database
-    stored_user = db.get_login_data(username)
+    #stored_user = db.get_login_data(username)
+    stored_user = db.get_user_login(username)
 
     # Check if password is valid
     if check_password_hash(stored_user['password'], password):
@@ -118,8 +119,8 @@ def login():
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    username = data.get('username').strip()
+    password = data.get('password').strip()
 
     # Make sure username and password is provided
     if not username:
@@ -146,13 +147,15 @@ def signup():
                 username,
                 hashed_password,
                 new_token,
-                1500,
+                1200,
                 '{}',
                 '{}'
             ],
         )
         # Get id from new user (it's auto-generated when user is created)
         new_user_id = db.get_user_id(username)
+        if new_user_id == -1:
+            return jsonify({"error": "Username doesn't exist"}), 400
         # Return the user_id, username, and token just like login
         return jsonify(
             {
