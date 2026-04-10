@@ -107,7 +107,7 @@ final class ApiCall {
         }
         
         let body: [String: Any] = [
-            "user_id": STAFF_USER_ID
+            "user_id": UserCreds.shared.getStringId() as Any
         ]
         
         do {
@@ -202,7 +202,7 @@ final class ApiCall {
     // Informs backend of change and refreshes tasks
     func toggleTask(task: TaskItem) async {
         let body: [String:Any] = [
-            "user_id": STAFF_USER_ID,
+            "user_id": UserCreds.shared.getStringId() as Any,
             "task_id": task.id,
             "status": !task.isCompleted
         ]
@@ -218,6 +218,7 @@ final class ApiCall {
     
     // Abstracted function to send a request and return some Decodable struct as response
     private func sendRequest<T: Decodable>(_ method: String, _ body: [String: Any], _ endpoint: String) async throws -> T{
+        //print(body)
         guard let url = URL(string: "\(serverUrl)/\(endpoint)") else {
             throw URLError(.badURL)
         }

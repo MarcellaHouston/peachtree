@@ -65,7 +65,7 @@ struct GoalItem {
                 "measurable": "completion",
                 "end_date": NO_DUE,
                 "category": NO_CATEGORY,
-                "user_id": STAFF_USER_ID,// TODO: Unhardcode the user
+                "user_id": UserCreds.shared.getStringId() as Any,
                 "difficulty": "easy",
                 "days_of_week": repeatDays.toString()
             ]

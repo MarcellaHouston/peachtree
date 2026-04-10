@@ -207,8 +207,8 @@ private struct TokenManager {
         Text(displayString).foregroundColor(.green)
     }
     
-    Button("save \"thisstringid\", 1337, \"thistoken\"") {
-        status = UserCreds.shared.set(string: "thisstringid", int: 1337, token: "thistoken")
+    Button("save \"STAFF_USER_ID\", 1337, \"thistoken\"") {
+        status = UserCreds.shared.set(string: STAFF_USER_ID, int: 1337, token: "thistoken")
     }
     Button("get token") {
         if let res = UserCreds.shared.getToken() {

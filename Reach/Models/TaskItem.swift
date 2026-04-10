@@ -25,7 +25,7 @@ struct TaskItem: Identifiable {
                 "id": id,
                 "measurable": "completion",
                 "end_date": NO_DUE,
-                "user": STAFF_USER_ID // TODO: Unhardcode the user
+                "user": UserCreds.shared.getStringId() as Any
                 
                 // No isCompleted in backend
             ]
