@@ -31,6 +31,8 @@
     "username": "TEXT NOT NULL UNIQUE",
     "password": "TEXT NOT NULL",
     "token": "TEXT NOT NULL UNIQUE",
+    "rating": "INTEGER NOT NULL",
+    "deviation": "REAL NOT NULL",
     "week_schedule": "TEXT CHECK(json_valid(week_schedule))", 
     "week_availability": "TEXT CHECK(json_valid(week_availability))"
   }

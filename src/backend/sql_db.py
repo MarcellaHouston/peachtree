@@ -283,11 +283,7 @@ class Database:
         self._commit()
         return True
 
-<<<<<<< HEAD
-    def get_user_token(self, user_id: int) -> str {
-=======
-    def get_user_token(self, user_id: str) -> str:
->>>>>>> backend-staging
+    def get_user_token(self, user_id: int) -> str:
         # Get the token used for authorization for a user
         row = self._run_param(
             "SELECT token FROM users WHERE id = ?", (user_id,)
@@ -296,7 +292,35 @@ class Database:
             token = row[0]
             return token
         else:
-            return f"ERROR: TOKEN FOR USER {user_id} NOT FOUND\n"
+            raise ValueError(f"Token for user {user_id} not found")
+    
+    def get_user_id(self, username: str) -> int:
+        row = self._run_param(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return row[0]
+        raise ValueError(f"User {username} not found in database")
+    
+    def check_for_username(self, username: str) -> bool:
+        row = self._run_param(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return True
+        return False
+    
+    def get_user_login(self, username: str) -> dict:
+        # Used for login primarily right now
+        fetch_data = self._run_param(
+            "SELECT id, password FROM users WHERE username = ?", (username)
+        ).fetchone()
+        if not fetch_data:
+            raise ValueError(f"User {username} not found in database")
+        user_data = {}
+        user_data['User-ID'] = fetch_data[0]
+        user_data['password'] = fetch_data[1]
+        return user_data
 
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
