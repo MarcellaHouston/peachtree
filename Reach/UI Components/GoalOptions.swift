@@ -23,11 +23,7 @@ struct GoalOptions: View {
     
     var body: some View {
         // Scrollable content options
-        if !editMode {
-            GoalGuidanceBar(prompt: "Not sure where to start with this goal? Tap to receive goal guidance!")
-            .padding(.horizontal, 10)
-            .padding(.bottom, 20)
-        }
+        
         ScrollView {
             VStack(alignment: .leading) {
                 
