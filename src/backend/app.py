@@ -68,10 +68,6 @@ def check_auth(headers: dict) -> bool:
     if not user_id or not auth:
         return False
     auth = auth.split()[-1]
-    check = False
-    out = True
-    #if check:
-        # check to make sure authentication key from request matches user's token
     token = db.get_user_token(user_id)
     token = token.split()[-1]
     out = (auth == token)
