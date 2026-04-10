@@ -118,6 +118,7 @@ class LLMClient:
         SUMMARIZE_TRANSCRIPTION = 3
         GENERATE_WEEKLY_SUGGESTIONS = 4
         GENERATE_GUIDANCE_SUGGESTIONS = 5
+        EXTRACT_SEMANTICS = 6
 
     def __init__(
         self,
@@ -131,6 +132,7 @@ class LLMClient:
             self.UseCase.SUMMARIZE_TRANSCRIPTION: "summarize_transcription.txt",
             self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: "generate_weekly_suggestions.txt",
             self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: "generate_guidance_suggestions.txt",
+            self.UseCase.EXTRACT_SEMANTICS: "extract_semantics.txt",
         }
 
         self.use_case = use_case
@@ -142,6 +144,7 @@ class LLMClient:
             self.UseCase.SUMMARIZE_TRANSCRIPTION: 2,
             self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: 3,
             self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: 3,
+            self.UseCase.EXTRACT_SEMANTICS: 2,
         }[self.use_case]
 
         prompts = Path(__file__).parent / "prompts"
@@ -176,16 +179,18 @@ class LLMClient:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_WEEKLY_SUGGESTIONS]
                 )
-                self.rag = True
-                self.schema = []
-                # TODO finish stub
+                self.rag = False
+                self.schema = ["changes_summary", "suggested_changes"]
             case self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS]
                 )
                 self.rag = True
+                self.schema = ["changes_summary", "suggested_changes"]
+            case self.UseCase.EXTRACT_SEMANTICS:
+                file_path = prompts / self.files[self.UseCase.EXTRACT_SEMANTICS]
+                self.rag = False
                 self.schema = []
-                # TODO finish stub
             case _:
                 raise ValueError("Invalid use case specified for LLMClient.")
 
@@ -214,8 +219,12 @@ class LLMClient:
         for _ in range(max_retries):
             valid = True
             rag_query = ""
-            if self.use_case == self.UseCase.GENERATE_TASKS:
+            if self.use_case in [
+                self.UseCase.GENERATE_TASKS,
+                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
+            ]:
                 rag_query = loads(content).get("goal_name")
+
             response = self.model.query(
                 content=content,
                 user_id=self.user_id,
@@ -410,6 +419,119 @@ class LLMClient:
                             self.model.previous_conversation.append(
                                 "Error: The previous response had an invalid impact_days value. Please provide a new response with impact_days between 3 and 80000."
                             )
+
+                case (
+                    self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                    | self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS
+                ):
+                    output = json_response
+
+                    missing_keys = []
+                    for key in self.schema:
+                        if key not in json_response:
+                            print(f"Response missing key '{key}'.")
+                            missing_keys.append(key)
+                            valid = False
+
+                    if missing_keys:
+                        self.model.previous_conversation.append(
+                            "Error: The previous response was invalid because it was missing the following keys: "
+                            + ", ".join(missing_keys)
+                            + ". Please provide a new response that includes these keys."
+                        )
+                        continue
+
+                    allowed_changes = ["name", "end_date", "difficulty", "days_of_week"]
+
+                    # check changes in allowed_changes
+                    for change in json_response["suggested_changes"]:
+                        for key in change:
+                            if key not in allowed_changes:
+                                print(
+                                    f"Invalid suggested change key: {key}. Must be one of the following: {', '.join(allowed_changes)}."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had an invalid suggested change key. Please provide a new response with suggested changes that are only from the following list: name, end_date, difficulty, days_of_week."
+                                )
+                        change_set = set(change)
+
+                        if "end_date" in change_set:
+                            # validate is in YYYY-MM-DD format
+                            try:
+                                time.strptime(change["end_date"], "%Y-%m-%d")
+                            except Exception as e:
+                                print(e)
+                                print(
+                                    f"Invalid end_date value: {change['end_date']}. Must be in YYYY-MM-DD format."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had an invalid end_date value in the suggested changes. Please provide a new response with end_date in YYYY-MM-DD format."
+                                )
+                        if "difficulty" in change_set:
+                            # validate is one of "easy", "average", "hard"
+                            if change["difficulty"] not in ["easy", "average", "hard"]:
+                                print(
+                                    f"Invalid difficulty value: {change['difficulty']}. Must be one of the following: easy, average, hard."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had an invalid difficulty value in the suggested changes. Please provide a new response with difficulty as one of the following: easy, average, hard."
+                                )
+                        if "days_of_week" in change_set:
+                            # validate is a comma separated list of days of the week
+                            days = change["days_of_week"].split(",")
+                            valid_days = {
+                                "monday",
+                                "tuesday",
+                                "wednesday",
+                                "thursday",
+                                "friday",
+                                "saturday",
+                                "sunday",
+                            }
+                            if not set(days).issubset(valid_days):
+                                print(
+                                    f"Invalid days_of_week value: {change['days_of_week']}. Must be a comma separated list of days of the week."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had an invalid days_of_week value in the suggested changes. Please provide a new response with days_of_week as a comma separated list of days of the week."
+                                )
+                        # assert name not empty
+                        if "name" in change_set and not change["name"].strip():
+                            print("Invalid name value: name cannot be empty.")
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid name value in the suggested changes. Please provide a new response with a non-empty name."
+                            )
+
+                    if self.use_case == self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
+                        for change in json_response["suggested_changes"]:
+                            # only one of allowed_changes
+                            intersection = set(change) & set(allowed_changes)
+                            if len(intersection) != 1:
+                                print(
+                                    f"Invalid suggested change keys: {', '.join(change.keys())}. Each suggested change must have exactly one key that is one of the following: {', '.join(allowed_changes)}."
+                                )
+                                valid = False
+                                self.model.previous_conversation.append(
+                                    "Error: The previous response had invalid suggested change keys. Please provide a new response with suggested changes that each have exactly one key that is from the following list: name, end_date, difficulty, days_of_week."
+                                )
+
+                    # check summary not empty
+                    if not json_response["changes_summary"].strip():
+                        print(
+                            "Invalid changes_summary value: changes_summary cannot be empty."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_summary value. Please provide a new response with a non-empty changes_summary."
+                        )
+
+                case self.UseCase.EXTRACT_SEMANTICS:
+                    output = response
 
             if valid:
                 self.model.flush()
