@@ -390,17 +390,44 @@ class Database:
                 )
         return True
 
-    def get_user_token(self, user_id: str) -> str:
+    def get_user_token(self, user_id: int) -> str:
         # Get the token used for authorization for a user
         row = self._run_param(
-            "SELECT token FROM users WHERE username = ?", (user_id,)
+            "SELECT token FROM users WHERE id = ?", (user_id,)
         ).fetchone()
         if row:
             token = row[0]
-            print("User %s's token is %s\n", user_id, token)
             return token
         else:
-            return f"ERROR: TOKEN FOR USER {user_id} NOT FOUND\n"
+            return ""
+    
+    def get_user_id(self, username: str) -> int:
+        row = self._run_param(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return row[0]
+        return -1
+    
+    def check_for_username(self, username: str) -> bool:
+        row = self._run_param(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return True
+        return False
+    
+    def get_user_login(self, username: str) -> dict:
+        # Used for login primarily right now
+        fetch_data = self._run_param(
+            "SELECT id, password FROM users WHERE username = ?", (username)
+        ).fetchone()
+        user_data = {"User-ID": "", "password": ""}
+        if not fetch_data:
+            return user_data
+        user_data['User-ID'] = fetch_data[0]
+        user_data['password'] = fetch_data[1]
+        return user_data
 
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.

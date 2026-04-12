@@ -8,9 +8,11 @@ import chromaDB.chroma_db as chroma
 import os
 import uuid
 import json
+from werkzeug.security import generate_password_hash, check_password_hash
 
 import logging
 
+CHECK = True
 # Set up logging to output to stdout/stderr
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,19 +62,111 @@ def validate_goal(goal):
 
 
 # Helper function that should be called in every endpoint
-def check_auth(user_id: str, auth: str, check=False) -> bool:
+def check_auth(headers: dict) -> bool:
     # Makes sure user's authentication key matches their stored token
-    out = True
-    if check:
-        # check to make sure authentication key from request matches user's token
-        token = db.get_user_token(user_id)
-        out = auth == token
-    return out
+    user_id = headers.get("User-ID")
+    auth = headers.get("Authorization")
+    if not CHECK:
+        return True
+    if not user_id or not auth:
+        return False
+    token = db.get_user_token(user_id)
+    return (auth == token)
 
 
 @app.route("/")
 def hello():
     return "Hello"
+
+
+
+# ---- AUTH ROUTES ----
+
+@app.route("/login", methods=["POST"])
+def login():
+    # Frontend should provide username and password
+    data = request.get_json()
+    username = data.get('username').strip()
+    password = data.get('password').strip()
+
+    # Demo mode if no username provided
+    if not username:
+        return jsonify({"error": "Missing username field in request"}), 400
+    if not password:
+        return jsonify({"error": "Missing password field in request"}), 400
+    
+    # Get user's stored password and id from database
+    #stored_user = db.get_login_data(username)
+    stored_user = db.get_user_login(username)
+
+    # Check if password is valid
+    if check_password_hash(stored_user['password'], password):
+        # Generate new token and update it in database
+        new_uuid = uuid.uuid4()
+        new_token = "Bearer " + str(new_uuid)
+        to_update = {"token": new_token}
+        db.update("users", stored_user['User-ID'], to_update)
+        return jsonify({
+            "User-ID": stored_user['User-ID'],
+            "user_id": username,
+            "Authorization": new_token
+        }), 200
+    else:
+        # Password didn't match, return failure
+        return jsonify({"error": "Invalid credentials"}), 401
+
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    username = data.get('username').strip()
+    password = data.get('password').strip()
+
+    # Make sure username and password is provided
+    if not username:
+        return jsonify({"error": "Missing username field in request body"}), 400
+    if not password:
+        return jsonify({"error": "Missing password field in request body"}), 400
+
+    # Check for duplicate username
+    if db.check_for_username(username):
+        return jsonify({"error": "Username already exists"}), 409
+
+    # Hash the password
+    hashed_password = generate_password_hash(password)
+
+    # Generate token
+    new_uuid = uuid.uuid4()
+    new_token = "Bearer " + str(new_uuid)
+
+    try:
+        # Insert new user into database (id will auto-generate in .insert)
+        db.insert(
+            "users",
+            [
+                username,
+                hashed_password,
+                new_token,
+                1200,
+                '{}',
+                '{}'
+            ],
+        )
+        # Get id from new user (it's auto-generated when user is created)
+        new_user_id = db.get_user_id(username)
+        if new_user_id == -1:
+            return jsonify({"error": "Username doesn't exist"}), 400
+        # Return the user_id, username, and token just like login
+        return jsonify(
+            {
+                "User-ID": new_user_id,
+                "user_id": username,
+                "Authorization": new_token
+            }
+        ), 201
+    except Exception as e:
+        return jsonify({"error": f"{e}"}), 400
+
 
 
 # ---------------------------------------------------------------------------
@@ -87,12 +181,8 @@ def get_goals():
     # If user_id is provided, also runs the weekly schedule check.
     data = request.get_json(silent=True) or {}
 
-    user_id = data.get("user_id")
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     start_date = parse_date(data.get("start_date"))
@@ -160,11 +250,8 @@ def create_goal():
     if not "user_id" in data:
         return jsonify({"error": "Missing user_id in request"}), 401
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "No authentication key provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     goal = data["goal"]
@@ -262,14 +349,8 @@ def update_goal():
     if not goal_id:
         return jsonify({"error": "Missing goal id for update"}), 400
 
-    user_id = data.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 401
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "No authentication key provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     errors = validate_goal(goal)
@@ -297,14 +378,8 @@ def snooze_goal():
     # The goal stays in the system but won't appear as active until that date.
     data = request.get_json()
 
-    user_id = data.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Missing user_id in request"}), 401
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     goal_id = data.get("id")
@@ -320,14 +395,8 @@ def delete_goal():
     # Delete a goal by id. Associated tasks are removed automatically via cascade.
     data = request.get_json(silent=True) or {}
 
-    user_id = data.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Missing user_id in request"}), 401
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     goal_id = data.get("id")
@@ -348,11 +417,8 @@ def complete_task():
     if not user_id or task_id is None or status is None:
         return jsonify({"error": "Missing user_id, task_id, or status"}), 400
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     db.set_task_status(user_id, task_id, status)
@@ -377,11 +443,8 @@ def weekly_schedule():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     new_week, schedule = db.check_new_week(user_id)
@@ -398,11 +461,7 @@ def daily_goal_digest():
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(user_id, auth_key, False)  # change to True when done testing
-    if not auth:
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     today_name = [
@@ -436,11 +495,8 @@ def eod_summary():
     if not userid:
         return jsonify({"error": "Missing User-ID in header"}), 401
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"Authentication key not provided"}), 401
-    auth = check_auth(userid, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     if not file_type:
@@ -509,11 +565,8 @@ def save_convo():
     if not userid or not transcription:
         return jsonify({"error": "Missing information"})
 
-    auth_key = request.headers.get("authenticate")
-    if not auth_key:
-        return jsonify({"error": "Authentication key not provided"}), 401
-    auth = check_auth(userid, auth_key, False)  # change to true when done testing
-    if not auth:
+    # Check authentication
+    if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
     # Initialize LLMClient
