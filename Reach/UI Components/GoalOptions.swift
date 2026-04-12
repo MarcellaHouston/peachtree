@@ -16,14 +16,12 @@ struct GoalOptions: View {
     @State private var newEndDate = Date()
     
     @State private var showingCategoryField = false
-    @State private var newCategory = ""
+    @State private var newCategory = ""    
     
     var body: some View {
         // Scrollable content options
         if !editMode {
-            GoalGuidanceBar(prompt: "Not sure where to start with this goal? Tap to receive goal guidance!") {
-                // TODO: Navigate to goal creation guidance
-            }
+            GoalGuidanceBar(prompt: "Not sure where to start with this goal? Tap to receive goal guidance!")
             .padding(.horizontal, 10)
             .padding(.bottom, 20)
         }
@@ -54,9 +52,7 @@ struct GoalOptions: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 10)
                 } else {
-                    GoalGuidanceBar(prompt: "Thinking about adjusting this goal? Tap to receive goal guidance!") {
-                        // TODO: Navigate to goal guidance
-                    }
+                    GoalGuidanceBar(prompt: "Thinking about adjusting this goal? Tap to receive goal guidance!")
                 }
                 
                 // Goal category spot

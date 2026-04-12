@@ -27,10 +27,10 @@ struct BottomNavView: View {
         //lays out nav bar horizontally depending on which selected tab is selected
         //determines if it is star.circle or star.circle.fill
         HStack(spacing: 0) {
-            navItem(title: "Today’s Tasks", selected: selectedTab == .todayTasks, systemImage: selectedTab == .todayTasks ? "star.circle.fill" : "star.circle", tab: .todayTasks)
-            navItem(title: "Goals", selected: selectedTab == .goals, systemImage: selectedTab == .goals ? "star.circle.fill" : "star.circle", tab: .goals)
-            navItem(title: "Weekly Recap", selected: selectedTab == .weeklyRecap, systemImage: selectedTab == .weeklyRecap ? "star.circle.fill" : "star.circle", tab: .weeklyRecap)
-            navItem(title: "End of Day", selected: selectedTab == .endOfDay, systemImage: selectedTab == .endOfDay ? "star.circle.fill" : "star.circle", tab: .endOfDay)
+            navItem(title: "Today’s Tasks", selected: selectedTab == .todayTasks, systemImage: selectedTab == .todayTasks ? "checkmark.circle.fill" : "checkmark.circle", tab: .todayTasks)
+            navItem(title: "Goals", selected: selectedTab == .goals, systemImage: selectedTab == .goals ? "flag.fill" : "flag", tab: .goals)
+            navItem(title: "Weekly Recap", selected: selectedTab == .weeklyRecap, systemImage: selectedTab == .weeklyRecap ? "chart.bar.fill" : "chart.bar", tab: .weeklyRecap)
+            navItem(title: "End of Day", selected: selectedTab == .endOfDay, systemImage: selectedTab == .endOfDay ? "moon.fill" : "moon", tab: .endOfDay)
         }
         //these paddings give the bar spacing similar to the figma design
         //the fixed height keeps the navigation bar size consistent at the bottom

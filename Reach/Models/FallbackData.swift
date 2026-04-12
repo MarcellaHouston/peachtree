@@ -28,6 +28,13 @@ enum FallbackData {
        // GoalItemBuilder().id(-206).title("Cook healthy meals").build()
     ]
     
+    static let fallbackGoalMods: [GoalModification] = [
+        GoalModification(id: -201, key: .category, val: "Health"),
+        GoalModification(id: -201, key: .title, val: "Journal for 5m daily"),
+        GoalModification(id: -202, key: .difficulty, val: "hard"),
+        GoalModification(id: -203, key: .title, val: "Study 1 hour a day")
+    ]
+    
     //For Task Goal Names in Edit Goal Popup
     static let fallbackTaskGoalNames: [Int: String] = [
         -101: "Go to the gym 3 times a week",
