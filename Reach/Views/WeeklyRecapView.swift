@@ -1,7 +1,16 @@
+//
+//  WeeklyRecapView.swift
+//  Reach
+//
+//  Created by Ismael Medina on 3/25/26.
+//
 import SwiftUI
 
 struct WeeklyRecapView: View {
-    @Binding var selectedTab: AppTab
+    //Removed since AppState is used
+    //@Binding var selectedTab: AppTab
+    @Binding var appState: AppState
+    let onAccountTap: () -> Void
     let weekText = "Feb 10 - Feb 16, 2026"
     let summaryText = "You removed the gym goal, paused journaling, and continued working on your remaining goals this week. Focus next on meal prep, studying, and keeping your daily routines consistent."
     let suggestionText = "Focus on consistency by reducing daily job applications and structuring study into focused sessions. Maintain journaling and weekly meal prep for steady progress."
@@ -11,8 +20,8 @@ struct WeeklyRecapView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView()
-            
+            HeaderView(appState: $appState, onAccountTap: onAccountTap)
+
             VStack {
                 // Header
                 Text("Weekly Recap")
@@ -75,7 +84,7 @@ struct WeeklyRecapView: View {
             } // End of content
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView(selectedTab: $appState.selectedTab)
         }
         .background(Color.black)
         .ignoresSafeArea(edges: .bottom)
@@ -90,5 +99,5 @@ struct WeeklyRecapView: View {
 }
 
 #Preview {
-    WeeklyRecapView(selectedTab: .constant(.weeklyRecap))
+    WeeklyRecapView(appState: .constant(AppState(selectedTab: .weeklyRecap, showSignIn: false, isDemoMode: true, showDemoPopup: false)), onAccountTap: {})
 }

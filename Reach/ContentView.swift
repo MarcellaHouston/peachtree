@@ -35,17 +35,12 @@ struct ContentView: View {
                 switch appState.selectedTab {
                 case .todayTasks:
                     TodayTasksView(appState: $appState, onAccountTap: { showSignOutPopup = true })
-                    //TodayTasksView(selectedTab: $selectedTab, isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup)
                 case .goals:
                     GoalsView(appState: $appState, onAccountTap: {showSignOutPopup = true})
-                    //GoalsView(selectedTab: $selectedTab, isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup)
                 case .weeklyRecap:
-                    //WeeklyRecapView(appState: $appState, onAccountTap: {showSignOutPopup = true})
-                    WeeklyRecapView(appState: $appState)
-                    //WeeklyRecapView(selectedTab: $selectedTab, isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup)
+                    WeeklyRecapView(appState: $appState, onAccountTap: { showSignOutPopup = true})
                 case .endOfDay:
                     EODCheckinView(appState: $appState, onAccountTap: {showSignOutPopup = true})
-                    //EODCheckinView(selectedTab: $selectedTab, isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup)
                 }
             }
         }
@@ -57,7 +52,6 @@ struct ContentView: View {
                 VStack {
                     Spacer()
                     DemoConfirmPopup(appState: $appState)
-                    //DemoConfirmPopup(showDemoPopup: $showDemoPopup, showSignIn: $showSignIn, isDemoMode: $isDemoMode, selectedTab: $selectedTab)
                     Spacer()
                 }
             }
