@@ -11,11 +11,8 @@ import SwiftUI
 //it includes a small status bar row and a second row for the peach icon and account section
 //the goal is to match the figma layout while keeping the structure simple
 struct HeaderView: View {
-    @Binding var isDemoMode: Bool
-    @Binding var showSignIn: Bool
-    @Binding var showDemoPopup: Bool
-    @Binding var selectedTab: AppTab
-    var showLeaveDemo: Bool
+    @Binding var appState: AppState
+    let onAccountTap: () -> Void
     var body: some View {
         VStack(spacing: 0) {
            
@@ -54,12 +51,12 @@ struct HeaderView: View {
 
             HStack(spacing: 0) {
                 HStack {
-                    if showLeaveDemo {
+                    if appState.isDemoMode {
                         Button("Leave Demo") {
-                            isDemoMode = false
-                            showDemoPopup = false
-                            selectedTab = .todayTasks
-                            showSignIn = true
+                            appState.isDemoMode = false
+                            appState.showDemoPopup = false
+                            appState.selectedTab = .todayTasks
+                            appState.showSignIn = true
                         }
                         .font(.system(size: 13, weight: .regular))
                         .foregroundColor(Color(red: 0.90, green: 0.34, blue: 0.31))
@@ -75,19 +72,41 @@ struct HeaderView: View {
 
                 Spacer()
 
-                VStack(spacing: 3) {
-                    Circle()
-                        .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
-                        .frame(width: 34, height: 34)
-                        .overlay {
-                            Image(systemName: "person.crop.circle")
-                                .font(.system(size: 18, weight: .regular))
-                                .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
-                        }
+                Group {
+                    if appState.isDemoMode {
+                        VStack(spacing: 3) {
+                            Circle()
+                                .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
+                                .frame(width: 34, height: 34)
+                                .overlay {
+                                    Image(systemName: "person.crop.circle")
+                                        .font(.system(size: 18, weight: .regular))
+                                        .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
+                                }
 
-                    Text("Account")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.white)
+                            Text("Account")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    } else {
+                        Button(action: onAccountTap) {
+                            VStack(spacing: 3) {
+                                Circle()
+                                    .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
+                                    .frame(width: 34, height: 34)
+                                    .overlay {
+                                        Image(systemName: "person.crop.circle")
+                                            .font(.system(size: 18, weight: .regular))
+                                            .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
+                                    }
+
+                                Text("Account")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .frame(width: 86)
             }
@@ -107,7 +126,15 @@ struct HeaderView: View {
         .background(Color.black)
     }
 }
+/*
+ #Preview {
+ HeaderView(isDemoMode: .constant(true), showSignIn: .constant(false), showDemoPopup: .constant(false), selectedTab: .constant(.todayTasks), showLeaveDemo: true)
+ }
+ */
 
 #Preview {
-    HeaderView(isDemoMode: .constant(true), showSignIn: .constant(false), showDemoPopup: .constant(false), selectedTab: .constant(.todayTasks), showLeaveDemo: true)
+    HeaderView(
+        appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: false)),
+        onAccountTap: {}
+    )
 }

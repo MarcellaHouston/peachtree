@@ -10,11 +10,8 @@ import SwiftUI
 //it handles displaying goals, opening edit/new goal popups, and switching tabs
 struct GoalsView: View {
     //binding to control which tab is currently selected in the app
-    @Binding var selectedTab: AppTab
-    
-    @Binding var isDemoMode: Bool
-    @Binding var showSignIn: Bool
-    @Binding var showDemoPopup: Bool
+    @Binding var appState: AppState
+    let onAccountTap: () -> Void
     
     //this keeps track of which goal is currently selected when user taps one
     @State private var selectedGoal: GoalItem? = nil
@@ -28,7 +25,7 @@ struct GoalsView: View {
     var body: some View {
         //outer container for header, content, nav
         VStack(spacing: 0) {
-            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
+            HeaderView(appState: $appState, onAccountTap: onAccountTap)
             //main content
             VStack(spacing: 0) {
                 //Goals Formatting and Text title
@@ -42,7 +39,7 @@ struct GoalsView: View {
                     .overlay(alignment: .topTrailing) {
                         //Moon Icon
                         Button {
-                            selectedTab = .endOfDay
+                            appState.selectedTab = .endOfDay
                         } label: {
                             Image(systemName: "moon.circle.fill")
                                 .font(.system(size: 50, weight: .regular))
@@ -92,7 +89,7 @@ struct GoalsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
             //nav bar integration
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView(selectedTab: $appState.selectedTab)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
@@ -163,9 +160,13 @@ private struct GoalRow: View {
         .buttonStyle(.plain)
     }
 }
-
+/*
 #Preview {
     GoalsView(selectedTab: .constant(.goals), isDemoMode: .constant(true), showSignIn: .constant(false), showDemoPopup: .constant(false))
+}
+ */
+#Preview {
+    GoalsView(appState: .constant(AppState(selectedTab: .goals, showSignIn: false, isDemoMode: true, showDemoPopup: false)),onAccountTap: {})
 }
 
 

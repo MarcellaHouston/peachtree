@@ -9,18 +9,15 @@ import SwiftUI
 import AVFoundation
 
 struct EODCheckinView: View {
-    @Binding var selectedTab: AppTab
-    
-    @Binding var isDemoMode: Bool
-    @Binding var showSignIn: Bool
-    @Binding var showDemoPopup: Bool
+    @Binding var appState: AppState
+    let onAccountTap: () -> Void
     //from Audiomanager.swift
     @State private var audioManager = AudioManager()
     
     var body: some View {
         VStack(spacing: 0) {
             //HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn)
-            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
+            HeaderView(appState: $appState, onAccountTap: onAccountTap)
             VStack(spacing: 0) {
                 
                 // Check if we should show the review screen or the mic screen
@@ -33,7 +30,7 @@ struct EODCheckinView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
             
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView(selectedTab: $appState.selectedTab)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
@@ -140,4 +137,11 @@ struct MicButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
+}
+
+#Preview {
+    EODCheckinView(
+        appState: .constant(AppState(selectedTab: .endOfDay, showSignIn: false, isDemoMode: false, showDemoPopup: false)),
+        onAccountTap: {}
+    )
 }

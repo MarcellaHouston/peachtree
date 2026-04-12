@@ -12,13 +12,8 @@ import SwiftUI
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
     
-    //@Binding connects this view to a parent view's state
-    //selectedTab lets this screen change the current tab
-    @Binding var selectedTab: AppTab
-    //For Demo Mode
-    @Binding var isDemoMode: Bool
-    //For Showing Sign In screen
-    @Binding var showSignIn: Bool
+    @Binding var appState: AppState
+    let onAccountTap: () -> Void
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
     //dictionary mapping of task id to goal name
@@ -26,48 +21,7 @@ struct TodayTasksView: View {
     //controls whether the popup is visible or not
     @State private var showEditGoal = false
     //For Demo Mode
-    @Binding var showDemoPopup: Bool
     
-    /*
-    private let fallbackTasks: [TaskItem] = [
-        TaskItem(id: -101, title: "Went to the gym", isCompleted: false),
-        TaskItem(id: -102, title: "Wrote a page in my journal", isCompleted: false),
-        TaskItem(id: -103, title: "Studied for 2 hours", isCompleted: false),
-        TaskItem(id: -104, title: "Applied to 5 jobs", isCompleted: false),
-        TaskItem(id: -105, title: "Make a keto meal", isCompleted: false),
-        TaskItem(id: -106, title: "Brushed my teeth", isCompleted: false)
-    ]
-    
-    private let fallbackGoals: [GoalItem] = [
-        GoalItemBuilder().id(-201).title("Journal daily").build(),
-        GoalItemBuilder().id(-202).title("Brush my teeth twice daily").build(),
-        GoalItemBuilder().id(-203).title("Study 2 hours a day").build(),
-        GoalItemBuilder().id(-204).title("Apply for 5 jobs a day").build(),
-        GoalItemBuilder().id(-205).title("Go to the gym 3 times a week").build(),
-        GoalItemBuilder().id(-206).title("Cook healthy meals").build()
-    ]
-    
-    private let fallbackTaskGoalNames: [Int: String] = [
-        -101: "Go to the gym 3 times a week",
-        -102: "Journal daily",
-        -103: "Study 2 hours a day",
-        -104: "Apply for 5 jobs a day",
-        -105: "Cook healthy meals",
-        -106: "Brush my teeth twice daily"
-    ]
-    */
-    
-    /*
-    @State private var tasks: [TaskItem] = [
-        TaskItem(title: "Went to the gym", isCompleted: false),
-        TaskItem(title: "Wrote a page in my journal", isCompleted: false),
-        TaskItem(title: "Studied for 2 hours", isCompleted: true),
-        TaskItem(title: "Applied to 5 jobs", isCompleted: false),
-        TaskItem(title: "Make a keto meal", isCompleted: true),
-        TaskItem(title: "Brushed my teeth", isCompleted: false)
-    ]
-    */
-
     //this property counts how many tasks are currently completed
     //it filters the task list and returns the number of tasks marked as done
     private var completedTaskCount: Int {
@@ -86,7 +40,7 @@ struct TodayTasksView: View {
     var body: some View {
         VStack(spacing: 0) {
             //header at the top of the screen containing the status bar and profile section
-            HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn, showDemoPopup: $showDemoPopup, selectedTab: $selectedTab, showLeaveDemo: isDemoMode && !showDemoPopup)
+            HeaderView(appState: $appState, onAccountTap: onAccountTap)
             VStack(spacing: 0) {
                 //screen title centered below the header
                 //the larger font matches the emphasis shown in the figma design
@@ -162,7 +116,7 @@ struct TodayTasksView: View {
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
 
             //bottom navigation bar for switching between major app sections
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView(selectedTab: $appState.selectedTab)
         }
         //black background ensures the header and navigation bar blend into the edges of the screen
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -271,8 +225,11 @@ private struct TodayTaskRow: View {
     }
 }
 
-
+/*
 #Preview {
-    //TodayTasksView(selectedTab: .constant(.todayTasks))
-    TodayTasksView(selectedTab: .constant(.todayTasks),isDemoMode: .constant(true),showSignIn: .constant(false),showDemoPopup: .constant(true))
+    TodayTasksView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)))
+}
+*/
+
+#Preview {TodayTasksView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)), onAccountTap: {})
 }

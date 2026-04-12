@@ -10,10 +10,7 @@ import SwiftUI
 //this view builds the demo confirmation popup shown on top of today's tasks
 //it matches the figma design with centered layout and exact wording
 struct DemoConfirmPopup: View {
-    @Binding var showDemoPopup: Bool
-    @Binding var showSignIn: Bool
-    @Binding var isDemoMode: Bool
-    @Binding var selectedTab: AppTab
+    @Binding var appState: AppState
 
     private let accentPurple = Color(red: 112 / 255, green: 88 / 255, blue: 184 / 255)
 
@@ -40,15 +37,15 @@ struct DemoConfirmPopup: View {
                 HStack(spacing: 20) {
 
                     Button("Continue Demo") {
-                        showDemoPopup = false
+                        appState.showDemoPopup = false
                     }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(accentPurple)
 
                     Button("Leave Demo") {
-                        showDemoPopup = false
-                        isDemoMode = false
-                        showSignIn = true
+                        appState.showDemoPopup = false
+                        appState.isDemoMode = false
+                        appState.showSignIn = true
                     }
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(.black.opacity(0.8))
@@ -67,7 +64,11 @@ struct DemoConfirmPopup: View {
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
     }
 }
-
+/*
+ #Preview {
+ DemoConfirmPopup(showDemoPopup: .constant(true), showSignIn: .constant(false), isDemoMode: .constant(true), selectedTab: .constant(.todayTasks))
+ }
+ */
 #Preview {
-    DemoConfirmPopup(showDemoPopup: .constant(true), showSignIn: .constant(false), isDemoMode: .constant(true), selectedTab: .constant(.todayTasks))
+    DemoConfirmPopup(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)))
 }

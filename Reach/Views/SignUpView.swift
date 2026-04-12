@@ -1,13 +1,13 @@
 //
-//  SignInView.swift
+//  SignUpView.swift
 //  Reach
 //
-//  Created by Ismael Medina on 4/1/26.
+//  Created by Ismael Medina on 4/10/26.
 //
 
 import SwiftUI
 
-struct SignInView: View {
+struct SignUpView: View {
     @Binding var appState: AppState
     //This is temporary will change after receiving backend portion
     //Do not worry about this
@@ -43,7 +43,7 @@ struct SignInView: View {
                     .clipped()
 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Sign in")
+                    Text("Sign up")
                         .font(.system(size: 55, weight: .regular))
                         .foregroundColor(.black)
                         .padding(.top, -30)
@@ -65,7 +65,7 @@ struct SignInView: View {
                 TextField(
                     "",
                     text: $username,
-                    prompt: Text("ILikeCinnamonToastCrunch123")
+                    prompt: Text("BoxofCheerios123")
                         .foregroundColor(placeholderGray)
                 )
                 .font(.system(size: 14, weight: .regular))
@@ -99,18 +99,14 @@ struct SignInView: View {
                 
             
                 .padding(.top, 12)
-
                 Spacer()
-                    //.frame(height: 92)
                     .frame(height: 50)
 
                 Button {
-                    //Remove after testing is done
-                    //Comment out when necessary
-                    //TESTING ONLY CRITICAL LINE
+                    appState.authScreen = .signIn
                     appState.showSignIn = false
                 } label: {
-                    Text("Login")
+                    Text("Create Account")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -118,37 +114,19 @@ struct SignInView: View {
                         .background(accentPurple)
                         .clipShape(Capsule())
                 }
-
+                .frame(maxWidth: .infinity)
+                .padding(.top, 14)
+                
                 HStack(spacing: 8) {
-                    Text("Don’t have an account?")
+                    Text("Already have an account?")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(.black.opacity(0.78))
-                    // TODO: Send sign up request using the filled in username and password
-                    Button("Sign Up") {
-                        appState.authScreen = .signUp
+
+                    Button("Log In") {
+                        appState.authScreen = .signIn
                     }
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(accentPurple)
-
-                    Text("•")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(.black.opacity(0.78))
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        Button("Try Demo") {
-                            appState.isDemoMode = true
-                            appState.showDemoPopup = true
-                            appState.showSignIn = false
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(accentPurple)
-
-                        Text("(No account needed)")
-                            .font(.system(size: 7, weight: .regular))
-                            .foregroundColor(.black.opacity(0.7))
-                            .padding(.top, 1)
-                    }
-                    .padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 14)
@@ -164,7 +142,7 @@ struct SignInView: View {
     }
 }
 
-struct SignInWaveFill: Shape {
+struct SignUpWaveFill: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
@@ -201,7 +179,7 @@ struct SignInWaveFill: Shape {
     }
 }
 
-struct SignInWaveLine: Shape {
+struct SignUpWaveLine: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
@@ -240,6 +218,7 @@ struct SignInWaveLine: Shape {
  }
  */
 #Preview {
-    SignInView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: true, isDemoMode: false, showDemoPopup: false)))
+    SignUpView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: true, isDemoMode: false, showDemoPopup: false)))
 }
+
 
