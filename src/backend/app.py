@@ -66,10 +66,10 @@ def check_auth(headers: dict) -> bool:
     # Makes sure user's authentication key matches their stored token
     user_id = headers.get("User-ID")
     auth = headers.get("Authorization")
-    if not user_id or not auth:
-        return False
     if not CHECK:
         return True
+    if not user_id or not auth:
+        return False
     token = db.get_user_token(user_id)
     return (auth == token)
 
