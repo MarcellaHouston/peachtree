@@ -54,7 +54,7 @@ struct GuidancePopupView: View {
                 Text("Let’s set you up for success!")
                     .SmallHeader()
                     .padding(.bottom, 10)
-                Text("If you'd like,I can help you refine this goal using insights from your past performance. Would you like to share your vision for this goal?")
+                Text("If you'd like, I can help you refine this goal using insights from your past performance. Would you like to share your vision for this goal?")
                     .padding(10)
             }
             
