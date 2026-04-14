@@ -14,9 +14,9 @@ struct NewGoalView: View {
     
     @State private var newCategory = ""
     @State private var showingCategoryField = false
+    @State private var showGuidance = false
     
-    @Binding var isShowing: Bool
-    
+    @Binding var isShowing: Bool    
     
     var body: some View {
         VStack(spacing: 0) {
@@ -36,11 +36,17 @@ struct NewGoalView: View {
                 }
                     .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Create Goal") {
+                    
                     // Post goal to the backend
                     Task {
                         await ApiCall.shared.createGoal(goal: goal)
                     }
-                    isShowing = false
+                    
+                    //isShowing = false
+                    // guidance popup should eventually pass in goal info to GuidancePopupView
+                    showGuidance = true
+                    
+                                        
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
@@ -48,8 +54,28 @@ struct NewGoalView: View {
             .padding(.horizontal, 20)
         }
         .background(.white)
-        .frame(maxWidth: 360, maxHeight: 570)
+        .frame(maxWidth: 360, maxHeight: 500)
         .cornerRadius(15)
+        .fullScreenCover(isPresented: $showGuidance,
+                                 onDismiss: didDismiss) {
+            let goal = GoalItemBuilder()
+                .title("Go to the gym 3 times a week.")
+                .category("Fitness")
+                .due(Date(timeIntervalSinceNow: 10000))
+                .mon().wed().fri()
+                .id(4)
+                .build()
+            GuidancePopupView(goal: ApiCall.shared.goals.last ?? goal,
+                              isShowing: $showGuidance, editMode: false)
+            .frame(maxWidth: .infinity,
+                   maxHeight: .infinity)
+            .background(Color.black)
+            .ignoresSafeArea(edges: .all)
+        }
+    }
+    func didDismiss() {
+        showGuidance = false
+        isShowing = false
     }
 }
 

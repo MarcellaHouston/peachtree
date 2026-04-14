@@ -12,13 +12,16 @@ struct GuidancePopupView: View {
     @State private var goal: GoalItem
     //from Audiomanager.swift
     @State private var audioManager = AudioManager()
-
-    @Binding var isShowing: Bool
     
-    init(goal goalIn: GoalItem, isShowing isShowingIn: Binding<Bool>){
+    @Binding var isShowing: Bool
+    var editMode: Bool
+    
+    init(goal: GoalItem, isShowing: Binding<Bool>, editMode: Bool = true){
         // This is a copy because GoalItem is a struct, not a class
-        goal = goalIn
-        _isShowing = isShowingIn
+        self.goal = goal
+        self._isShowing = isShowing
+        self.editMode = editMode
+        
     }
     
     var body: some View {
@@ -40,12 +43,20 @@ struct GuidancePopupView: View {
             Text("AI Assisted Goal Guidance")
                 .font(.title)
                 .padding(.vertical, 20)
-            
-            Text("Let's improve: \(goal.title)")
-                .SmallHeader()
-                .padding(.bottom, 10)
-            Text("Tell me what aspects you’d like to change, and I can suggest adjustments based on your previous recaps.")
-                .padding(10)
+            if (editMode) {
+                Text("Let's improve: \(goal.title)")
+                    .SmallHeader()
+                    .padding(.bottom, 10)
+                Text("Tell me what aspects you’d like to change, and I can suggest adjustments based on your previous recaps.")
+                    .padding(10)
+            }
+            else {
+                Text("Let’s set you up for success!")
+                    .SmallHeader()
+                    .padding(.bottom, 10)
+                Text("If you'd like, I can help you refine this goal using insights from your past performance. Would you like to share your vision for this goal?")
+                    .padding(10)
+            }
             
             // button connection to audio manager, starts recording when pressed
             Button(action: { audioManager.toggleRecording() }) {
@@ -59,7 +70,7 @@ struct GuidancePopupView: View {
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)
             }
-            .padding(.top, 50)
+            .padding(.top, 35)
             .buttonStyle(MicButtonStyle())
             
             // while waiting for LLM response, shows the user "Creating a plan"
@@ -76,10 +87,12 @@ struct GuidancePopupView: View {
             }
             
             // Footer with cancel button
-                Button("Cancel"){
+            Button(editMode ? "Cancel" : "No, thanks!"){
                     isShowing = false
                 }
-                    .buttonStyle(PurpleButtonStyle(active: false))
+                .buttonStyle(PurpleButtonStyle(active: false))
+                .padding(.top, 20)
+        
         }
         .frame(width: 360, height: 500)
         .background(.white)
