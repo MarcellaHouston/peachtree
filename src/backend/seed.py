@@ -21,7 +21,7 @@ db.insert(
         "password",
         "",
         1500,
-        250.0
+        250.0,
         None,  # week_schedule — populated automatically by check_new_week
         json.dumps(
             {

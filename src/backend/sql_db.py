@@ -177,9 +177,10 @@ class Database:
         # Saves the resulting schedule to the user's week_schedule column and updates
         # each task's days_of_week column.
         from datetime import date
+
         # if a schedule already exists for this week, subtract the number from total
         today = date.today().isoformat()
-        
+
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
         row = self._run_param(
             "SELECT week_availability FROM users WHERE username = ?", (user_id,)
@@ -251,8 +252,8 @@ class Database:
             chosen = [avail_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
-            goal_instance_counts[goal_id] = (
-                goal_instance_counts.get(goal_id, 0) + len(chosen)
+            goal_instance_counts[goal_id] = goal_instance_counts.get(goal_id, 0) + len(
+                chosen
             )
             # Persist which days this task is assigned to
             self._run_param(
@@ -385,9 +386,7 @@ class Database:
                 "SELECT goal_id FROM tasks WHERE task_id = ?", (task_id,)
             ).fetchone()
             if goal_row:
-                self.adjust_goal_completion(
-                    goal_row[0], 1 if status else -1, 0
-                )
+                self.adjust_goal_completion(goal_row[0], 1 if status else -1, 0)
         return True
 
     def get_user_token(self, user_id: int) -> str:
@@ -400,7 +399,7 @@ class Database:
             return token
         else:
             return ""
-    
+
     def get_user_id(self, username: str) -> int:
         row = self._run_param(
             "SELECT id FROM users WHERE username = ?", (username,)
@@ -408,7 +407,7 @@ class Database:
         if row:
             return row[0]
         return -1
-    
+
     def check_for_username(self, username: str) -> bool:
         row = self._run_param(
             "SELECT * FROM users WHERE username = ?", (username,)
@@ -416,17 +415,17 @@ class Database:
         if row:
             return True
         return False
-    
+
     def get_user_login(self, username: str) -> dict:
         # Used for login primarily right now
         fetch_data = self._run_param(
-            "SELECT id, password FROM users WHERE username = ?", (username)
+            "SELECT id, password FROM users WHERE username = ?", (username,)
         ).fetchone()
         user_data = {"User-ID": "", "password": ""}
         if not fetch_data:
             return user_data
-        user_data['User-ID'] = fetch_data[0]
-        user_data['password'] = fetch_data[1]
+        user_data["User-ID"] = fetch_data[0]
+        user_data["password"] = fetch_data[1]
         return user_data
 
     def delete(self, table: str, id: int):

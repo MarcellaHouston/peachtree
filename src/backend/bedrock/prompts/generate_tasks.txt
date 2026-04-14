@@ -9,6 +9,7 @@ GOAL: The high-level objective the user wants to achieve. This will be a JSON ob
 "end_date" (str, YYYY-MM-DD): End date of goal.
 "difficulty" (str): One of "easy", "average", "hard". User-determined difficulty of the goal for them.
 "days_of_week" (str): comma delimited list of lowercase full day names. Any tasks generated must fall under these days.
+"user_skill" (int): This is a piggybacked value in the goal object. This is a measure of the user's skill, directly one-to-one to the `difficulty_score` field later on. This is an integer between 1 and 100, with 1 being low skill and 100 being high skill. Try to generate tasks that have a `difficulty_score` appropriate for this user's skill.
 STRICT OUTPUT RULES: Return ONLY a valid JSON array of objects. NO conversational filler (e.g., "Here is the JSON"). NO markdown formatting. Do NOT wrap the response in json or tags. DO NOT wrap the response in markdown (i.e. ```json). The response MUST start with "[" and end with "]". Any strings in the JSON must be wrapped with double quotes. If no information is found, return an empty array: []
 TASK SCHEMA:
 Each object in the array must contain these exact keys:
