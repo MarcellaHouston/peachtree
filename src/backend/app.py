@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
-import score
+import glicko
+import glicko_run
 from sql_db import Database
 from bedrock.llm import LLMClient
 import transcription.aws as aws
@@ -149,7 +150,7 @@ def signup():
                 new_token,
                 1500,
                 350.0,
-                0.06
+                0.06,
                 '{}',
                 '{}'
             ],
@@ -319,7 +320,6 @@ def create_goal():
                     task["end_date"],
                     task["impetus"],
                     task["difficulty_score"],
-                    score.calculate_task_rating(tasks),
                 ],
             )
         if tasks:

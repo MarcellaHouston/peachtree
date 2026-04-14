@@ -431,11 +431,12 @@ class Database:
     
     def get_glicko_task_data(self, taskid: int) -> dict:
         fetch_data = self._run_param(
-            "SELECT impetus, difficulty_score WHERE task_id = ?", (taskid)
+            "SELECT impetus, difficulty_score, goal_id WHERE task_id = ?", (taskid)
         ).fetchone()
-        task_data = {"impetus": 0, "difficulty_score": 0}
+        task_data = {"impetus": 0, "difficulty_score": 0, "goal_id": 0}
         task_data["impetus"] = fetch_data[0]
         task_data["difficulty_score"] = fetch_data[1]
+        task_data["goal_id"] = fetch_data[2]
         return task_data
     
     def update_user_glicko(self, user_id: int, rating: int, RD: float, volatility: float):

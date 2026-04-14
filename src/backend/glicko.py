@@ -75,7 +75,8 @@ class Glicko:
 
     def calc_new_volatility(self, delta: float, variance: float) -> float:
         # Set initial values according to Glicko-2 iterative algorithm
-        A = math.log(pow(self.volatility, 2))
+        A_true = math.log(pow(self.volatility, 2))
+        A = A_true
         epsilon = 0.000001
         delt_sq = pow(delta, 2)
         phi_sq = pow(self.user_RD, 2)
@@ -84,18 +85,18 @@ class Glicko:
             B = math.log(delt_sq - phi_sq - variance)
         else:
             k = 1
-            while f_x(A - (k * self.SYSTEM_CONSTANT)) < 0:
+            while self.f_x(A - (k * self.SYSTEM_CONSTANT), delta, variance, self.user_RD, A) < 0:
                 k = k + 1
             B = A - (k * self.SYSTEM_CONSTANT)
         # Assign f(A) and f(B)
-        f_a = self.f_x(A)
-        f_b = self.f_x(B)
+        f_a = self.f_x(A, delta, variance, self.user_RD, A)
+        f_b = self.f_x(B, delta, variance, self.user_RD, A)
         # Last iteration to find new volatility
         while abs(B - A) > epsilon:
             c_numerator = (A - B) * f_a
             c_denominator = f_b - f_a
             C = A + (c_numerator / c_denominator)
-            f_c = self.f_x(C)
+            f_c = self.f_x(C, delta, variance, self.user_RD, A_true)
             if (f_c * f_b) <= 0:
                 A = B
                 f_a = f_b
@@ -110,8 +111,7 @@ class Glicko:
         return math.sqrt(pow(self.user_RD, 2) + pow(sigma, 2))
     
     def update_vals(self, pre_rating: float, variance: float) -> tuple:
-        expr = math.sqrt((1 / pow(pre_rating, 2)) + (1 / variance))
-        new_RD = 1.0 / expr
+        new_RD = 1.0 / math.sqrt((1.0 / pow(pre_rating, 2)) + (1.0 / variance))
 
         rd_sum = 0
         for task in self.tasks:
