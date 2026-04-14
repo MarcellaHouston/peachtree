@@ -71,7 +71,7 @@ def check_auth(headers: dict) -> bool:
     if not user_id or not auth:
         return False
     token = db.get_user_token(user_id)
-    return (auth == token)
+    return auth == token
 
 
 @app.route("/")
@@ -79,48 +79,53 @@ def hello():
     return "Hello"
 
 
-
 # ---- AUTH ROUTES ----
+
 
 @app.route("/login", methods=["POST"])
 def login():
     # Frontend should provide username and password
     data = request.get_json()
-    username = data.get('username').strip()
-    password = data.get('password').strip()
+    username = data.get("username").strip()
+    password = data.get("password").strip()
 
     # Demo mode if no username provided
     if not username:
         return jsonify({"error": "Missing username field in request"}), 400
     if not password:
         return jsonify({"error": "Missing password field in request"}), 400
-    
+
     # Get user's stored password and id from database
-    #stored_user = db.get_login_data(username)
+    # stored_user = db.get_login_data(username)
     stored_user = db.get_user_login(username)
 
     # Check if password is valid
-    if check_password_hash(stored_user['password'], password):
+    if check_password_hash(stored_user["password"], password):
         # Generate new token and update it in database
         new_uuid = uuid.uuid4()
         new_token = "Bearer " + str(new_uuid)
         to_update = {"token": new_token}
-        db.update("users", stored_user['User-ID'], to_update)
-        return jsonify({
-            "User-ID": stored_user['User-ID'],
-            "user_id": username,
-            "Authorization": new_token
-        }), 200
+        db.update("users", stored_user["User-ID"], to_update)
+        return (
+            jsonify(
+                {
+                    "User-ID": stored_user["User-ID"],
+                    "user_id": username,
+                    "Authorization": new_token,
+                }
+            ),
+            200,
+        )
     else:
         # Password didn't match, return failure
         return jsonify({"error": "Invalid credentials"}), 401
 
 
-@app.route('/signup', methods=['POST'])
+@app.route("/signup", methods=["POST"])
 def signup():
     data = request.get_json()
-    username = data.get('username').strip()
-    password = data.get('password').strip()
+    username = data.get("username").strip()
+    password = data.get("password").strip()
 
     # Make sure username and password is provided
     if not username:
@@ -143,30 +148,25 @@ def signup():
         # Insert new user into database (id will auto-generate in .insert)
         db.insert(
             "users",
-            [
-                username,
-                hashed_password,
-                new_token,
-                1200,
-                '{}',
-                '{}'
-            ],
+            [username, hashed_password, new_token, 1200, 350.0, "{}", "{}"],
         )
         # Get id from new user (it's auto-generated when user is created)
         new_user_id = db.get_user_id(username)
         if new_user_id == -1:
             return jsonify({"error": "Username doesn't exist"}), 400
         # Return the user_id, username, and token just like login
-        return jsonify(
-            {
-                "User-ID": new_user_id,
-                "user_id": username,
-                "Authorization": new_token
-            }
-        ), 201
+        return (
+            jsonify(
+                {
+                    "User-ID": new_user_id,
+                    "user_id": username,
+                    "Authorization": new_token,
+                }
+            ),
+            201,
+        )
     except Exception as e:
         return jsonify({"error": f"{e}"}), 400
-
 
 
 # ---------------------------------------------------------------------------
@@ -208,11 +208,15 @@ def get_goals():
             "difficulty": row[8],
             "category": row[9],
             "days_of_week": row[10],
-            "completion": json.loads(row[11]) if row[11] else {
-                "completed_tasks": 0,
-                "all_tasks": 0,
-                "percent_completed": 0,
-            },
+            "completion": (
+                json.loads(row[11])
+                if row[11]
+                else {
+                    "completed_tasks": 0,
+                    "all_tasks": 0,
+                    "percent_completed": 0,
+                }
+            ),
             "isPaused": parse_date(active_date) > date.today(),
         }
 
