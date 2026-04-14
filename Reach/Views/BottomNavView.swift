@@ -19,18 +19,16 @@ enum AppTab {
 //right now only the today’s tasks tab is active, while the other tabs are shown
 //so the screen matches the full app layout from the design
 struct BottomNavView: View {
-    //lets this view read and change a value owned by another parent view
-    //selectTab keeps track of which tab is currently active
-    @Binding var selectedTab: AppTab
+    private let appState = AppState.shared
 
     var body: some View {
         //lays out nav bar horizontally depending on which selected tab is selected
         //determines if it is star.circle or star.circle.fill
         HStack(spacing: 0) {
-            navItem(title: "Today’s Tasks", selected: selectedTab == .todayTasks, systemImage: selectedTab == .todayTasks ? "checkmark.circle.fill" : "checkmark.circle", tab: .todayTasks)
-            navItem(title: "Goals", selected: selectedTab == .goals, systemImage: selectedTab == .goals ? "flag.fill" : "flag", tab: .goals)
-            navItem(title: "Weekly Recap", selected: selectedTab == .weeklyRecap, systemImage: selectedTab == .weeklyRecap ? "chart.bar.fill" : "chart.bar", tab: .weeklyRecap)
-            navItem(title: "End of Day", selected: selectedTab == .endOfDay, systemImage: selectedTab == .endOfDay ? "moon.fill" : "moon", tab: .endOfDay)
+            navItem(title: "Today’s Tasks", selected: appState.selectedTab == .todayTasks, systemImage: appState.selectedTab == .todayTasks ? "checkmark.circle.fill" : "checkmark.circle", tab: .todayTasks)
+            navItem(title: "Goals", selected: appState.selectedTab == .goals, systemImage: appState.selectedTab == .goals ? "flag.fill" : "flag", tab: .goals)
+            navItem(title: "Weekly Recap", selected: appState.selectedTab == .weeklyRecap, systemImage: appState.selectedTab == .weeklyRecap ? "chart.bar.fill" : "chart.bar", tab: .weeklyRecap)
+            navItem(title: "End of Day", selected: appState.selectedTab == .endOfDay, systemImage: appState.selectedTab == .endOfDay ? "moon.fill" : "moon", tab: .endOfDay)
         }
         //these paddings give the bar spacing similar to the figma design
         //the fixed height keeps the navigation bar size consistent at the bottom
@@ -75,7 +73,7 @@ struct BottomNavView: View {
         .contentShape(Rectangle())
         //runs code when user taps this tab item
         .onTapGesture {
-            selectedTab = tab
+            appState.selectedTab = tab
         }
     }
 }
@@ -83,7 +81,7 @@ struct BottomNavView: View {
 #Preview {
     VStack(spacing: 0) {
         Spacer()
-        BottomNavView(selectedTab: .constant(.todayTasks))
+        BottomNavView()
     }
     .background(Color.black)
 }

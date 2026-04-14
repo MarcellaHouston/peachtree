@@ -16,9 +16,7 @@ enum GoalsListMode {
 //this is the main goals screen view
 //it handles displaying goals, opening edit/new goal popups, and switching tabs
 struct GoalsView: View {
-    //binding to control which tab is currently selected in the app
-    @Binding var appState: AppState
-    let onAccountTap: () -> Void
+    private let appState = AppState.shared
     
     //this keeps track of which goal is currently selected when user taps one
     @State private var selectedGoal: GoalItem? = nil
@@ -38,7 +36,7 @@ struct GoalsView: View {
     var body: some View {
         //outer container for header, content, nav
         VStack(spacing: 0) {
-            HeaderView(appState: $appState, onAccountTap: onAccountTap)
+            HeaderView()
             //main content
             VStack(spacing: 0) {
                 //Goals Formatting and Text title
@@ -164,7 +162,7 @@ struct GoalsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
             //nav bar integration
-            BottomNavView(selectedTab: $appState.selectedTab)
+            BottomNavView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
@@ -256,5 +254,5 @@ private struct GoalRow: View {
 }
  */
 #Preview {
-    GoalsView(appState: .constant(AppState(selectedTab: .goals, showSignIn: false, isDemoMode: true, showDemoPopup: false)),onAccountTap: {})
+    GoalsView()
 }

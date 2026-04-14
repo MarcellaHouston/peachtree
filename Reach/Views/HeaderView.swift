@@ -11,8 +11,7 @@ import SwiftUI
 //it includes a small status bar row and a second row for the peach icon and account section
 //the goal is to match the figma layout while keeping the structure simple
 struct HeaderView: View {
-    @Binding var appState: AppState
-    let onAccountTap: () -> Void
+    private let appState = AppState.shared
     var body: some View {
         VStack(spacing: 0) {
            
@@ -89,7 +88,10 @@ struct HeaderView: View {
                                 .foregroundColor(.white)
                         }
                     } else {
-                        Button(action: onAccountTap) {
+                        Button {
+                            // open sign out popup directly from HeaderView
+                            appState.showSignOutPopup = true
+                        } label: {
                             VStack(spacing: 3) {
                                 Circle()
                                     .fill(Color(red: 0.88, green: 0.83, blue: 0.97))
@@ -122,7 +124,8 @@ struct HeaderView: View {
         }
         //the fixed height keeps the header consistent across previews and the full screen
         //the black background matches the top section of the mockup
-        .frame(height: 120)
+        //.frame(height: 120)
+        .frame(height: 90)
         .background(Color.black)
     }
 }
@@ -133,8 +136,5 @@ struct HeaderView: View {
  */
 
 #Preview {
-    HeaderView(
-        appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: false)),
-        onAccountTap: {}
-    )
+    HeaderView()
 }

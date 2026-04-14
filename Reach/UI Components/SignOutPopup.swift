@@ -8,9 +8,7 @@
 import SwiftUI
 
 struct SignOutPopup: View {
-    @Binding var appState: AppState
-    @Binding var isShowing: Bool
-
+    private let appState = AppState.shared
     private let accentPurple = Color(red: 112 / 255, green: 88 / 255, blue: 184 / 255)
 
     var body: some View {
@@ -38,13 +36,13 @@ struct SignOutPopup: View {
 
                 HStack(spacing: 22) {
                     Button("Cancel") {
-                        isShowing = false
+                        appState.showSignOutPopup = false
                     }
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(.black.opacity(0.8))
 
                     Button("Sign Out") {
-                        isShowing = false
+                        appState.showSignOutPopup = false
                         appState.isDemoMode = false
                         appState.showDemoPopup = false
                         appState.selectedTab = .todayTasks
@@ -66,5 +64,5 @@ struct SignOutPopup: View {
 }
 
 #Preview {
-    SignOutPopup(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: false, showDemoPopup: false)),isShowing: .constant(true))
+    SignOutPopup()
 }

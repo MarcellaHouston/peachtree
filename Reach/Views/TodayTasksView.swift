@@ -12,8 +12,6 @@ import SwiftUI
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
     
-    @Binding var appState: AppState
-    let onAccountTap: () -> Void
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
     //dictionary mapping of task id to goal name
@@ -40,7 +38,7 @@ struct TodayTasksView: View {
     var body: some View {
         VStack(spacing: 0) {
             //header at the top of the screen containing the status bar and profile section
-            HeaderView(appState: $appState, onAccountTap: onAccountTap)
+            HeaderView()
             VStack(spacing: 0) {
                 //screen title centered below the header
                 //the larger font matches the emphasis shown in the figma design
@@ -116,7 +114,7 @@ struct TodayTasksView: View {
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
 
             //bottom navigation bar for switching between major app sections
-            BottomNavView(selectedTab: $appState.selectedTab)
+            BottomNavView()
         }
         //black background ensures the header and navigation bar blend into the edges of the screen
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -231,5 +229,6 @@ private struct TodayTaskRow: View {
 }
 */
 
-#Preview {TodayTasksView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)), onAccountTap: {})
+#Preview {
+    TodayTasksView()
 }

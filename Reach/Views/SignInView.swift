@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct SignInView: View {
-    @Binding var appState: AppState
+    private let appState = AppState.shared
+    // receive authScreen from ContentView (moved out of AppState)
+    @Binding var authScreen: AuthScreen
     //This is temporary will change after receiving backend portion
     //Do not worry about this
     @State private var username = ""
@@ -65,7 +67,7 @@ struct SignInView: View {
                 TextField(
                     "",
                     text: $username,
-                    prompt: Text("ILikeCinnamonToastCrunch123")
+                    prompt: Text("Sign In Testing")
                         .foregroundColor(placeholderGray)
                 )
                 .font(.system(size: 14, weight: .regular))
@@ -105,9 +107,7 @@ struct SignInView: View {
                     .frame(height: 50)
 
                 Button {
-                    //Remove after testing is done
-                    //Comment out when necessary
-                    //TESTING ONLY CRITICAL LINE
+                    // TODO: remove temporary login bypass after backend auth is implemented
                     appState.showSignIn = false
                 } label: {
                     Text("Login")
@@ -125,7 +125,7 @@ struct SignInView: View {
                         .foregroundColor(.black.opacity(0.78))
                     // TODO: Send sign up request using the filled in username and password
                     Button("Sign Up") {
-                        appState.authScreen = .signUp
+                        authScreen = .signUp
                     }
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(accentPurple)
@@ -239,7 +239,6 @@ struct SignInWaveLine: Shape {
  SignInView(showSignIn: .constant(true), isDemoMode: .constant(false), showDemoPopup: .constant(false), selectedTab: .constant(.todayTasks))
  }
  */
-#Preview {
-    SignInView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: true, isDemoMode: false, showDemoPopup: false)))
+#Preview{
+    SignInView(authScreen: .constant(.signIn))
 }
-

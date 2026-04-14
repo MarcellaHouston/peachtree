@@ -10,8 +10,7 @@ import SwiftUI
 //this view builds the demo confirmation popup shown on top of today's tasks
 //it matches the figma design with centered layout and exact wording
 struct DemoConfirmPopup: View {
-    @Binding var appState: AppState
-
+    private let appState = AppState.shared
     private let accentPurple = Color(red: 112 / 255, green: 88 / 255, blue: 184 / 255)
 
     var body: some View {
@@ -70,5 +69,5 @@ struct DemoConfirmPopup: View {
  }
  */
 #Preview {
-    DemoConfirmPopup(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)))
+    DemoConfirmPopup()
 }

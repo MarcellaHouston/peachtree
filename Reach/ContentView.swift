@@ -6,6 +6,11 @@
 //
 import SwiftUI
 
+// auth screen enum moved here since it's only used for switching auth views
+enum AuthScreen {
+    case signIn
+    case signUp
+}
 //display TodayTasksView
 struct ContentView: View {
     /*
@@ -19,28 +24,30 @@ struct ContentView: View {
     @State private var showDemoPopup = false
     */
     //This is used instead of the previous @State by using struct definition in AppState.swift
-    @State private var appState = AppState()
-    @State private var showSignOutPopup = false
+    //moved auth screen state out of AppState into contentview
+    @State private var authScreen: AuthScreen = .signIn
+    private let appState = AppState.shared
     
     var body: some View {
         Group {
             if appState.showSignIn {
-                if appState.authScreen == .signIn
+                if authScreen == .signIn
                 {
-                    SignInView(appState: $appState)
+                    //pass authScreen binding down to child views
+                    SignInView(authScreen: $authScreen)
                 } else{
-                    SignUpView(appState: $appState)
+                    SignUpView(authScreen: $authScreen)
                 }
             } else {
                 switch appState.selectedTab {
                 case .todayTasks:
-                    TodayTasksView(appState: $appState, onAccountTap: { showSignOutPopup = true })
+                    TodayTasksView()
                 case .goals:
-                    GoalsView(appState: $appState, onAccountTap: {showSignOutPopup = true})
+                    GoalsView()
                 case .weeklyRecap:
-                    WeeklyRecapView(appState: $appState, onAccountTap: { showSignOutPopup = true})
+                    WeeklyRecapView()
                 case .endOfDay:
-                    EODCheckinView(appState: $appState, onAccountTap: {showSignOutPopup = true})
+                    EODCheckinView()
                 }
             }
         }
@@ -51,19 +58,19 @@ struct ContentView: View {
 
                 VStack {
                     Spacer()
-                    DemoConfirmPopup(appState: $appState)
+                    DemoConfirmPopup()
                     Spacer()
                 }
             }
             
             //Sign Out Popup
-            else if showSignOutPopup {
+            else if appState.showSignOutPopup {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
 
                 VStack {
                     Spacer()
-                    SignOutPopup(appState: $appState, isShowing: $showSignOutPopup)
+                    SignOutPopup()
                     Spacer()
                 }
             }

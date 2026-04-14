@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct SignUpView: View {
-    @Binding var appState: AppState
+    // receive authScreen from ContentView (moved out of AppState)
+    @Binding var authScreen: AuthScreen
+    
+    private let appState = AppState.shared
     //This is temporary will change after receiving backend portion
     //Do not worry about this
     @State private var username = ""
@@ -65,7 +68,7 @@ struct SignUpView: View {
                 TextField(
                     "",
                     text: $username,
-                    prompt: Text("BoxofCheerios123")
+                    prompt: Text("Sign Up Testing")
                         .foregroundColor(placeholderGray)
                 )
                 .font(.system(size: 14, weight: .regular))
@@ -103,7 +106,8 @@ struct SignUpView: View {
                     .frame(height: 50)
 
                 Button {
-                    appState.authScreen = .signIn
+                    // switch back to sign in using local auth state
+                    authScreen = .signIn
                     appState.showSignIn = false
                 } label: {
                     Text("Create Account")
@@ -123,7 +127,8 @@ struct SignUpView: View {
                         .foregroundColor(.black.opacity(0.78))
 
                     Button("Log In") {
-                        appState.authScreen = .signIn
+                        // switch auth screen using local state instead of AppState
+                        authScreen = .signIn
                     }
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(accentPurple)
@@ -218,7 +223,8 @@ struct SignUpWaveLine: Shape {
  }
  */
 #Preview {
-    SignUpView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: true, isDemoMode: false, showDemoPopup: false)))
+    SignUpView(authScreen: .constant(.signIn))
+
 }
 
 
