@@ -119,6 +119,7 @@ class LLMClient:
         GENERATE_WEEKLY_SUGGESTIONS = 4
         GENERATE_GUIDANCE_SUGGESTIONS = 5
         EXTRACT_SEMANTICS = 6
+        EXTRACT_GOAL_CONTENT = 7
 
     def __init__(
         self,
@@ -133,6 +134,7 @@ class LLMClient:
             self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: "generate_weekly_suggestions.txt",
             self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: "generate_guidance_suggestions.txt",
             self.UseCase.EXTRACT_SEMANTICS: "extract_semantics.txt",
+            self.UseCase.EXTRACT_GOAL_CONTENT: "extract_goal_content.txt",
         }
 
         self.use_case = use_case
@@ -145,6 +147,7 @@ class LLMClient:
             self.UseCase.GENERATE_WEEKLY_SUGGESTIONS: 3,
             self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS: 3,
             self.UseCase.EXTRACT_SEMANTICS: 2,
+            self.UseCase.EXTRACT_GOAL_CONTENT: 2,
         }[self.use_case]
 
         prompts = Path(__file__).parent / "prompts"
@@ -191,6 +194,10 @@ class LLMClient:
                 file_path = prompts / self.files[self.UseCase.EXTRACT_SEMANTICS]
                 self.rag = False
                 self.schema = []
+            case self.UseCase.EXTRACT_GOAL_CONTENT:
+                file_path = prompts / self.files[self.UseCase.EXTRACT_GOAL_CONTENT]
+                self.rag = False
+                self.schema = []
             case _:
                 raise ValueError("Invalid use case specified for LLMClient.")
 
@@ -214,6 +221,7 @@ class LLMClient:
             self.UseCase.GENERATE_TALKING_POINTS,
             self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
             self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
+            self.UseCase.EXTRACT_GOAL_CONTENT,
         ]:
             self.context("Today's date: " + time.strftime("%Y-%m-%d"))
         for _ in range(max_retries):
@@ -250,6 +258,26 @@ class LLMClient:
                     valid = False
                     self.model.previous_conversation.append(
                         "Error: The previous response was not valid JSON. Please provide a new response that is valid JSON and adheres to the schema."
+                    )
+                    continue
+
+            if self.use_case == self.UseCase.EXTRACT_GOAL_CONTENT:
+                try:
+                    json_response = loads(response)
+                    assert isinstance(json_response, dict)
+                    allowed_keys = {"name", "end_date", "days_of_week"}
+                    unexpected = set(json_response.keys()) - allowed_keys
+                    if unexpected:
+                        raise ValueError(
+                            f"Unexpected keys: {unexpected}. Only allowed keys are: {allowed_keys}"
+                        )
+                except Exception as e:
+                    print(
+                        f"Failed to parse response as JSON dict: {str(e)}. Response was: {response}"
+                    )
+                    valid = False
+                    self.model.previous_conversation.append(
+                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object with only these allowed keys: name, end_date, days_of_week."
                     )
                     continue
 
@@ -532,6 +560,9 @@ class LLMClient:
 
                 case self.UseCase.EXTRACT_SEMANTICS:
                     output = response
+
+                case self.UseCase.EXTRACT_GOAL_CONTENT:
+                    output = json_response
 
             if valid:
                 self.model.flush()

@@ -41,11 +41,35 @@ class _FakeLLMClient:
     via _insert_task."""
     class UseCase:
         GENERATE_TASKS = "GENERATE_TASKS"
+        GENERATE_WEEKLY_SUGGESTIONS = "GENERATE_WEEKLY_SUGGESTIONS"
+        GENERATE_GUIDANCE_SUGGESTIONS = "GENERATE_GUIDANCE_SUGGESTIONS"
+        EXTRACT_SEMANTICS = "EXTRACT_SEMANTICS"
+        EXTRACT_GOAL_CONTENT = "EXTRACT_GOAL_CONTENT"
 
-    def __init__(self, *args, **kwargs):
+    _FAKE_SUGGESTIONS = {
+        "suggested_changes": [
+            {"goal_id": 1, "difficulty": "hard", "summary": "Increase difficulty"},
+            {"goal_id": 1, "days_of_week": "monday,wednesday,friday", "summary": "Add more days"},
+        ],
+        "changes_summary": "You should push yourself harder.",
+    }
+
+    def __init__(self, *args, use_case=None, **kwargs):
+        self.use_case = use_case
+
+    def context(self, content):
         pass
 
     def query(self, *args, **kwargs):
+        if self.use_case in (
+            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
+            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
+        ):
+            return self._FAKE_SUGGESTIONS, True, 0
+        if self.use_case == self.UseCase.EXTRACT_SEMANTICS:
+            return "user wants to run more often", True, 0
+        if self.use_case == self.UseCase.EXTRACT_GOAL_CONTENT:
+            return {"name": "Run a marathon", "end_date": "2027-06-01", "days_of_week": "monday,wednesday,friday"}, True, 0
         return [], True, 0
 
 
@@ -64,24 +88,32 @@ class IntegrationTestCase(unittest.TestCase):
         self.llm_patch = patch.object(app_module, "LLMClient", _FakeLLMClient)
         self.llm_patch.start()
 
+        # Disable auth checks in tests
+        self.check_patch = patch.object(app_module, "CHECK", False)
+        self.check_patch.start()
+
     def tearDown(self):
         # Restore patches and close the in-memory connection
+        self.check_patch.stop()
         self.llm_patch.stop()
         self.db_patch.stop()
         self.real_db.db.close()
 
     def post_json(self, url, data):
         return self.client.post(
-            url, data=json.dumps(data), content_type="application/json"
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+            headers={"authenticate": "test-token"},
         )
 
-    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3):
+    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3, difficulty_score=50):
         self.real_db._run_param(
             """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               start_date, end_date, impetus, difficulty_score)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (goal_id, "Do the thing", weekly_frequency, weight,
-             date.today().isoformat(), "2027-12-31", impetus)
+             date.today().isoformat(), "2027-12-31", impetus, difficulty_score)
         )
         self.real_db._commit()
 
@@ -91,19 +123,18 @@ class IntegrationTestCase(unittest.TestCase):
         Keyword args are merged into the payload so individual tests can
         customise specific fields without repeating the full payload.
         """
-        payload = {
-            "goal": {
-                "name": "Run 5k",
-                "measurable": "completion",
-                "end_date": "2027-12-31",
-                "user_id": "alice",
-                "difficulty": "medium",
-                **overrides,
-            }
+        goal = {
+            "name": "Run 5k",
+            "measurable": "completion",
+            "end_date": "2027-12-31",
+            "user_id": "alice",
+            "difficulty": "medium",
+            **overrides,
         }
+        payload = {"goal": goal, "user_id": goal["user_id"]}
         resp = self.post_json("/goals/create", payload)
         self.assertEqual(resp.status_code, 204, resp.get_data(as_text=True))
-        return payload["goal"]
+        return goal
 
 
 # ---------------------------------------------------------------------------
@@ -245,8 +276,8 @@ class TestGetGoalsIntegration(IntegrationTestCase):
 
     def test_get_goals_with_user_id_includes_schedule(self):
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            ("alice", "pw", json.dumps({"monday": 3}))
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            ("alice", "pw", "tok-alice", 1500, 350.0, json.dumps({"monday": 3}))
         )
         self.real_db._commit()
         body = self.post_json("/goals", {"user_id": "alice"}).get_json()
@@ -267,7 +298,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
     def test_is_paused_true_after_snooze(self):
         self.create_goal(start_date=date.today().isoformat(), end_date="2027-12-31")
         goal_id = self.real_db.select("goals", "all")[0][0]
-        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 4})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 4})
         body = self.post_json("/goals", {"start_date": date.today().isoformat(), "end_date": "2027-12-31"}).get_json()
         self.assertTrue(body["goals"][0]["isPaused"])
 
@@ -290,6 +321,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
         self.post_json(
             "/goals/update",
             {
+                "user_id": "alice",
                 "goal": {
                     "id": goal_id,
                     "name": "Run 10k",
@@ -297,7 +329,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "end_date": "2027-12-31",
                     "user_id": "alice",
                     "difficulty": "medium",
-                }
+                },
             },
         )
         rows = self.real_db.select("goals", "all")
@@ -308,6 +340,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
         resp = self.post_json(
             "/goals/update",
             {
+                "user_id": "alice",
                 "goal": {
                     "id": goal_id,
                     "name": "Updated",
@@ -315,7 +348,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "end_date": "2027-06-01",
                     "user_id": "alice",
                     "difficulty": "medium",
-                }
+                },
             },
         )
         self.assertEqual(resp.status_code, 204)
@@ -330,6 +363,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
         self.post_json(
             "/goals/update",
             {
+                "user_id": "alice",
                 "goal": {
                     "id": first_id,
                     "name": "Goal One Modified",
@@ -337,7 +371,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "end_date": "2027-12-31",
                     "user_id": "alice",
                     "difficulty": "medium",
-                }
+                },
             },
         )
 
@@ -355,6 +389,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
         resp = self.post_json(
             "/goals/update",
             {
+                "user_id": "nobody",
                 "goal": {
                     "id": 9999,
                     "name": "Ghost",
@@ -362,7 +397,7 @@ class TestUpdateGoalIntegration(IntegrationTestCase):
                     "end_date": "2027-01-01",
                     "user_id": "nobody",
                     "difficulty": "low",
-                }
+                },
             },
         )
         self.assertEqual(resp.status_code, 204)
@@ -388,23 +423,23 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
 
     def test_snooze_pushes_active_date_forward(self):
         goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
-        resp = self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+        resp = self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 2})
         self.assertEqual(resp.status_code, 204)
         rows = self.real_db.select("goals", "all")
         self.assertEqual(rows[0][7], self._expected_snooze_date(2))
 
     def test_snooze_does_not_change_start_date(self):
         goal_id = self._create_and_get_id(start_date="2026-01-01", end_date="2027-12-31")
-        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 3})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 3})
         rows = self.real_db.select("goals", "all")
         self.assertEqual(rows[0][4], "2026-01-01")  # start_date unchanged
 
     def test_snooze_nonexistent_goal_returns_204(self):
-        resp = self.post_json("/goals/snooze", {"id": 9999, "weeks": 1})
+        resp = self.post_json("/goals/snooze", {"user_id": "alice", "id": 9999, "weeks": 1})
         self.assertEqual(resp.status_code, 204)
 
     def test_snooze_missing_fields_returns_400(self):
-        resp = self.post_json("/goals/snooze", {"id": 1})
+        resp = self.post_json("/goals/snooze", {"user_id": "alice", "id": 1})
         self.assertEqual(resp.status_code, 400)
 
     def test_snooze_shifts_from_today_not_active_date(self):
@@ -412,15 +447,15 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
         goal_id = self._create_and_get_id(
             start_date="2020-01-01", end_date="2027-12-31", active_date="2020-01-01"
         )
-        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 1})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 1})
         rows = self.real_db.select("goals", "all")
         self.assertEqual(rows[0][7], self._expected_snooze_date(1))
 
     def test_snooze_removes_tasks_from_week_schedule(self):
         # Insert user with a week_schedule that includes the goal's tasks
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability, week_schedule) VALUES (?, ?, ?, ?)",
-            ("alice", "pw", json.dumps({"monday": 5}), None)
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability, week_schedule) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("alice", "pw", "tok-alice", 1500, 350.0, json.dumps({"monday": 5}), None)
         )
         self.real_db._commit()
         goal_id = self._create_and_get_id(end_date="2027-12-31")
@@ -436,7 +471,7 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
         )
         self.real_db._commit()
 
-        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 2})
 
         row = self.real_db._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
@@ -448,8 +483,8 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
     def test_snooze_leaves_other_goals_tasks_in_schedule(self):
         # Snoozing goal A should not touch goal B's tasks in the schedule
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            ("alice", "pw", json.dumps({"monday": 5}))
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            ("alice", "pw", "tok-alice", 1500, 350.0, json.dumps({"monday": 5}))
         )
         self.real_db._commit()
 
@@ -469,7 +504,7 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
         )
         self.real_db._commit()
 
-        self.post_json("/goals/snooze", {"id": goal_a, "weeks": 2})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_a, "weeks": 2})
 
         row = self.real_db._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
@@ -481,7 +516,7 @@ class TestSnoozeGoalIntegration(IntegrationTestCase):
 
     def test_snooze_goal_with_no_tasks_does_not_error(self):
         goal_id = self._create_and_get_id(end_date="2027-12-31")
-        resp = self.post_json("/goals/snooze", {"id": goal_id, "weeks": 1})
+        resp = self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 1})
         self.assertEqual(resp.status_code, 204)
         rows = self.real_db.select("goals", "all")
         self.assertEqual(rows[0][7], self._expected_snooze_date(1))
@@ -496,8 +531,8 @@ class TestWeeklySchedule(IntegrationTestCase):
     def _insert_user(self, username, week_availability=None):
         avail = json.dumps(week_availability or {"monday": 3, "wednesday": 2, "friday": 4})
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            (username, "pw", avail)
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail)
         )
         self.real_db._commit()
 
@@ -537,7 +572,7 @@ class TestWeeklySchedule(IntegrationTestCase):
 
     def test_no_availability_returns_empty_schedule(self):
         self.real_db._run_param(
-            "INSERT INTO users (username, password) VALUES (?, ?)", ("bob", "pw")
+            "INSERT INTO users (username, password, token, rating, deviation) VALUES (?, ?, ?, ?, ?)", ("bob", "pw", "tok-bob", 1500, 350.0)
         )
         self.real_db._commit()
         resp = self.post_json("/schedule/weekly", {"user_id": "bob"})
@@ -568,8 +603,8 @@ class TestDailyGoalDigest(IntegrationTestCase):
             date.today().weekday()
         ]
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            (username, "pw", json.dumps({"monday": 3, "wednesday": 2, "friday": 4}))
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, json.dumps({"monday": 3, "wednesday": 2, "friday": 4}))
         )
         self.real_db._commit()
 
@@ -578,8 +613,8 @@ class TestDailyGoalDigest(IntegrationTestCase):
 
         self.real_db._run_param(
             """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (goal_id, "Go for a run", 3, 1, date.today().isoformat(), "2027-12-31", 4)
+               start_date, end_date, impetus, difficulty_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Go for a run", 3, 1, date.today().isoformat(), "2027-12-31", 4, 50)
         )
         self.real_db._commit()
         task_id = self.real_db._run("SELECT task_id FROM tasks").fetchone()[0]
@@ -634,7 +669,7 @@ class TestDailyGoalDigest(IntegrationTestCase):
 
     def test_no_schedule_returns_empty(self):
         self.real_db._run_param(
-            "INSERT INTO users (username, password) VALUES (?, ?)", ("bob", "pw")
+            "INSERT INTO users (username, password, token, rating, deviation) VALUES (?, ?, ?, ?, ?)", ("bob", "pw", "tok-bob", 1500, 350.0)
         )
         self.real_db._commit()
         resp = self.post_json("/daily_goal_digest", {"user_id": "bob"})
@@ -659,7 +694,7 @@ class TestDeleteGoalIntegration(IntegrationTestCase):
 
     def test_delete_removes_goal(self):
         goal_id = self._inserted_id()
-        resp = self.post_json("/goals/delete", {"id": goal_id})
+        resp = self.post_json("/goals/delete", {"user_id": "alice", "id": goal_id})
         self.assertEqual(resp.status_code, 204)
         rows = self.real_db.select("goals", "all")
         self.assertEqual(len(rows), 0)
@@ -668,21 +703,21 @@ class TestDeleteGoalIntegration(IntegrationTestCase):
         goal_id = self._inserted_id()
         self.real_db._run_param(
             """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (goal_id, "Do the thing", 2, 1, date.today().isoformat(), "2027-12-31", 3)
+               start_date, end_date, impetus, difficulty_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, "Do the thing", 2, 1, date.today().isoformat(), "2027-12-31", 3, 50)
         )
         self.real_db._commit()
         self.assertEqual(len(self.real_db._run("SELECT * FROM tasks").fetchall()), 1)
 
-        self.post_json("/goals/delete", {"id": goal_id})
+        self.post_json("/goals/delete", {"user_id": "alice", "id": goal_id})
         self.assertEqual(len(self.real_db._run("SELECT * FROM tasks").fetchall()), 0)
 
     def test_delete_missing_id_returns_400(self):
-        resp = self.post_json("/goals/delete", {})
+        resp = self.post_json("/goals/delete", {"user_id": "alice"})
         self.assertEqual(resp.status_code, 400)
 
     def test_delete_nonexistent_id_returns_204(self):
-        resp = self.post_json("/goals/delete", {"id": 9999})
+        resp = self.post_json("/goals/delete", {"user_id": "alice", "id": 9999})
         self.assertEqual(resp.status_code, 204)
 
 
@@ -698,8 +733,8 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
             date.today().weekday()
         ]
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            ("alice", "pw", json.dumps({"monday": 5}))
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            ("alice", "pw", "tok-alice", 1500, 350.0, json.dumps({"monday": 5}))
         )
         self.real_db._commit()
         self.create_goal(end_date="2027-12-31")
@@ -754,8 +789,8 @@ class TestGoalCompleteIntegration(IntegrationTestCase):
 
     def test_completed_initialized_false_on_assign(self):
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            ("alice", "pw", json.dumps({"monday": 5, "wednesday": 5}))
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            ("alice", "pw", "tok-alice", 1500, 350.0, json.dumps({"monday": 5, "wednesday": 5}))
         )
         self.real_db._commit()
         self.create_goal(end_date="2027-12-31")
@@ -789,8 +824,8 @@ class TestGoalCompletion(IntegrationTestCase):
     def _insert_user(self, username="alice", availability=None):
         avail = json.dumps(availability or {self._today_name(): 5})
         self.real_db._run_param(
-            "INSERT INTO users (username, password, week_availability) VALUES (?, ?, ?)",
-            (username, "pw", avail),
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail),
         )
         self.real_db._commit()
 
@@ -898,7 +933,7 @@ class TestGoalCompletion(IntegrationTestCase):
         )
         self.real_db._commit()
 
-        self.post_json("/goals/snooze", {"id": goal_id, "weeks": 2})
+        self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 2})
 
         c = self._completion(goal_id)
         self.assertEqual(c, {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0})
@@ -1007,6 +1042,357 @@ class TestGoalCompletion(IntegrationTestCase):
         cb = self._completion(goal_b)
         self.assertEqual(ca["completed_tasks"], 1)
         self.assertEqual(cb["completed_tasks"], 0)
+
+
+# ---------------------------------------------------------------------------
+# POST /receive_suggestions
+# ---------------------------------------------------------------------------
+
+
+class TestReceiveSuggestions(IntegrationTestCase):
+    def _insert_user(self, username="alice"):
+        avail = json.dumps({"monday": 3, "wednesday": 2, "friday": 4})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail),
+        )
+        self.real_db._commit()
+
+    def _post_suggestions(self, changes, user_id="alice"):
+        return self.client.post(
+            "/receive_suggestions",
+            data=json.dumps(changes),
+            content_type="application/json",
+            headers={"authenticate": "test-token", "User-ID": user_id},
+        )
+
+    def test_updates_goal_fields(self):
+        self._insert_user()
+        self.create_goal(name="Run 5k", difficulty="easy", end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+
+        resp = self._post_suggestions([
+            {"goal_id": goal_id, "name": "Run 10k", "difficulty": "hard"},
+        ])
+        self.assertEqual(resp.status_code, 204)
+
+        row = self.real_db.select("goals", "all")[0]
+        self.assertEqual(row[1], "Run 10k")  # name
+        self.assertEqual(row[8], "hard")      # difficulty
+
+    def test_reassigns_weekly_tasks(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+
+        resp = self._post_suggestions([
+            {"goal_id": goal_id, "days_of_week": "monday,friday"},
+        ])
+        self.assertEqual(resp.status_code, 204)
+
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        self.assertIsNotNone(row[0])
+        schedule = json.loads(row[0])
+        self.assertIn("curr_week_start", schedule)
+
+    def test_rejects_empty_list(self):
+        resp = self._post_suggestions([])
+        self.assertEqual(resp.status_code, 400)
+
+    def test_rejects_non_list(self):
+        resp = self._post_suggestions({"goal_id": 1, "name": "test"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_rejects_missing_goal_id(self):
+        resp = self._post_suggestions([{"name": "New name"}])
+        self.assertEqual(resp.status_code, 400)
+
+    def test_rejects_invalid_difficulty(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+
+        resp = self._post_suggestions([
+            {"goal_id": goal_id, "difficulty": "impossible"},
+        ])
+        self.assertEqual(resp.status_code, 400)
+
+    def test_ignores_unknown_fields(self):
+        self._insert_user()
+        self.create_goal(name="Original", end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+
+        resp = self._post_suggestions([
+            {"goal_id": goal_id, "name": "Updated", "summary": "ignored field"},
+        ])
+        self.assertEqual(resp.status_code, 204)
+        row = self.real_db.select("goals", "all")[0]
+        self.assertEqual(row[1], "Updated")
+
+    def test_missing_user_id_header(self):
+        resp = self.client.post(
+            "/receive_suggestions",
+            data=json.dumps([{"goal_id": 1, "name": "x"}]),
+            content_type="application/json",
+            headers={"authenticate": "test-token"},
+        )
+        self.assertEqual(resp.status_code, 401)
+
+
+# ---------------------------------------------------------------------------
+# GET /weekly_recap
+# ---------------------------------------------------------------------------
+
+
+class TestWeeklyRecap(IntegrationTestCase):
+    def _insert_user(self, username="alice"):
+        avail = json.dumps({"monday": 3, "wednesday": 2, "friday": 4})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail),
+        )
+        self.real_db._commit()
+
+    def _set_schedule(self, username, schedule):
+        self.real_db._run_param(
+            "UPDATE users SET week_schedule = ? WHERE username = ?",
+            (json.dumps(schedule), username),
+        )
+        self.real_db._commit()
+
+    def _get_recap(self, user_id="alice"):
+        return self.client.get(
+            "/weekly_recap",
+            headers={"authenticate": "test-token", "User-ID": user_id},
+        )
+
+    def test_returns_suggestions(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id)
+
+        schedule = {
+            "curr_week_start": self.real_db.this_sunday(),
+            "monday": [{"task_id": 1, "completed": True}],
+            "tuesday": [], "wednesday": [], "thursday": [],
+            "friday": [{"task_id": 2, "completed": False}],
+            "saturday": [], "sunday": [],
+        }
+        self._set_schedule("alice", schedule)
+
+        resp = self._get_recap()
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("suggested_changes", data)
+        self.assertIn("changes_summary", data)
+
+    def test_no_goals_returns_400(self):
+        self._insert_user()
+        resp = self._get_recap()
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_user_id_header(self):
+        resp = self.client.get(
+            "/weekly_recap",
+            headers={"authenticate": "test-token"},
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    def test_does_not_reassign_tasks(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+
+        original_schedule = {
+            "curr_week_start": "2025-01-05",
+            "monday": [{"task_id": 99, "completed": True}],
+            "tuesday": [], "wednesday": [], "thursday": [],
+            "friday": [], "saturday": [], "sunday": [],
+        }
+        self._set_schedule("alice", original_schedule)
+
+        self._get_recap()
+
+        row = self.real_db._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", ("alice",)
+        ).fetchone()
+        saved = json.loads(row[0])
+        self.assertEqual(saved["curr_week_start"], "2025-01-05")
+        self.assertEqual(saved["monday"], [{"task_id": 99, "completed": True}])
+
+    def test_llm_failure_returns_500(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+
+        class _FailingLLM(_FakeLLMClient):
+            def query(self, *args, **kwargs):
+                if self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS:
+                    return "error", False, 5
+                return super().query(*args, **kwargs)
+
+        with patch.object(app_module, "LLMClient", _FailingLLM):
+            resp = self._get_recap()
+        self.assertEqual(resp.status_code, 500)
+
+
+# ---------------------------------------------------------------------------
+# POST /goal_guidance
+# ---------------------------------------------------------------------------
+
+
+class TestGoalGuidance(IntegrationTestCase):
+    def _insert_user(self, username="alice"):
+        avail = json.dumps({"monday": 3, "wednesday": 2, "friday": 4})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail),
+        )
+        self.real_db._commit()
+
+    def _post_guidance(self, goal_id, user_id="alice", audio=b"fake-audio-bytes"):
+        headers = {
+            "authenticate": "test-token",
+            "User-ID": user_id,
+            "Goal-ID": str(goal_id),
+            "File-Type": ".wav",
+        }
+        return self.client.post(
+            "/goal_guidance",
+            data=audio,
+            headers=headers,
+        )
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="I want to run more")
+    def test_returns_suggestions(self, mock_transcribe, mock_upload):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+
+        resp = self._post_guidance(goal_id)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("suggested_changes", data)
+        self.assertIn("changes_summary", data)
+
+    def test_missing_goal_id_header(self):
+        resp = self.client.post(
+            "/goal_guidance",
+            data=b"fake-audio",
+            headers={"authenticate": "test-token", "User-ID": "alice"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_audio(self):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+
+        resp = self._post_guidance(goal_id, audio=b"")
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="I want to run more")
+    def test_goal_not_found(self, mock_transcribe, mock_upload):
+        self._insert_user()
+        resp = self._post_guidance(goal_id=9999)
+        self.assertEqual(resp.status_code, 404)
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="")
+    def test_transcription_failure(self, mock_transcribe, mock_upload):
+        self._insert_user()
+        self.create_goal(end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+
+        resp = self._post_guidance(goal_id)
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestExtractGoal(IntegrationTestCase):
+    def _insert_user(self, username="alice"):
+        avail = json.dumps({"monday": 3, "wednesday": 2, "friday": 4})
+        self.real_db._run_param(
+            "INSERT INTO users (username, password, token, rating, deviation, week_availability) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, "pw", f"tok-{username}", 1500, 350.0, avail),
+        )
+        self.real_db._commit()
+
+    def _post_extract(self, user_id="alice", audio=b"fake-audio-bytes"):
+        headers = {
+            "authenticate": "test-token",
+            "User-ID": user_id,
+            "File-Type": ".wav",
+        }
+        return self.client.post(
+            "/extract_goal",
+            data=audio,
+            headers=headers,
+        )
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="I want to run a marathon by June 2027 on mondays wednesdays and fridays")
+    def test_extract_goal_success(self, mock_transcribe, mock_upload):
+        self._insert_user()
+        resp = self._post_extract()
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("name", data)
+        self.assertIn("end_date", data)
+        self.assertIn("days_of_week", data)
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="I want to learn guitar")
+    def test_extract_goal_partial(self, mock_transcribe, mock_upload):
+        """LLM may return only some fields — endpoint still returns 200."""
+        self._insert_user()
+        resp = self._post_extract()
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIsInstance(data, dict)
+
+    @patch("transcription.aws.upload_to_s3", return_value=None)
+    @patch("transcription.aws.transcription_service", return_value="um uh yeah")
+    def test_extract_goal_empty(self, mock_transcribe, mock_upload):
+        """When nothing is extractable the LLM returns {} — still 200."""
+        self._insert_user()
+
+        # Override fake LLM to return empty dict for this test
+        original_query = _FakeLLMClient.query
+        def empty_query(self_llm, *a, **kw):
+            if self_llm.use_case == _FakeLLMClient.UseCase.EXTRACT_GOAL_CONTENT:
+                return {}, True, 0
+            return original_query(self_llm, *a, **kw)
+
+        with patch.object(_FakeLLMClient, "query", empty_query):
+            resp = self._post_extract()
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data, {})
+
+    def test_missing_user_id(self):
+        resp = self.client.post(
+            "/extract_goal",
+            data=b"fake-audio",
+            headers={"authenticate": "test-token"},
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    def test_missing_audio(self):
+        self._insert_user()
+        resp = self._post_extract(audio=b"")
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("transcription.aws.upload_to_s3", side_effect=Exception("S3 failure"))
+    def test_transcription_failure(self, mock_upload):
+        self._insert_user()
+        resp = self._post_extract()
+        self.assertEqual(resp.status_code, 500)
 
 
 if __name__ == "__main__":

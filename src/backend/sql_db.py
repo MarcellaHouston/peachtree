@@ -229,7 +229,7 @@ class Database:
         # sorted highest impetus first so urgent tasks get the best day slots
         tasks = self._run_param(
             """
-            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id
+            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, g.days_of_week
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
@@ -240,15 +240,23 @@ class Database:
 
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
-        n = len(avail_days)
         # Track how many instances each goal gets so we can bump its
         # cumulative all_tasks counter once at the end.
         goal_instance_counts: dict = {}
 
-        for task_id, freq, _, goal_id in tasks:
-            freq = min(freq, n)  # can't schedule more times than available days
-            step = max(1, n // freq)  # space out slots evenly across available days
-            chosen = [avail_days[(i * step) % n] for i in range(freq)]
+        for task_id, freq, _, goal_id, goal_days_of_week in tasks:
+            # Restrict to the intersection of user availability and goal's allowed days
+            if goal_days_of_week:
+                goal_days = set(goal_days_of_week.split(","))
+                eligible_days = [d for d in avail_days if d in goal_days]
+            else:
+                eligible_days = avail_days
+            if not eligible_days:
+                continue
+            n = len(eligible_days)
+            freq = min(freq, n)  # can't schedule more times than eligible days
+            step = max(1, n // freq)  # space out slots evenly across eligible days
+            chosen = [eligible_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
             goal_instance_counts[goal_id] = (
@@ -288,6 +296,15 @@ class Database:
         days_since_sunday = (today.weekday() + 1) % 7
         this_sunday = (today - timedelta(days=days_since_sunday)).isoformat()
         return this_sunday
+
+    def get_week_schedule(self, user_id: str) -> dict:
+        # Return the stored week_schedule for a user without triggering reassignment.
+        row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not row or not row[0]:
+            return {}
+        return json.loads(row[0])
 
     def check_new_week(self, user_id: str) -> tuple:
         # Called on app startup. Compares the most recent Sunday to the Sunday
