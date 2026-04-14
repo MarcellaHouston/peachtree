@@ -147,7 +147,9 @@ def signup():
                 username,
                 hashed_password,
                 new_token,
-                1200,
+                1500,
+                350.0,
+                0.06
                 '{}',
                 '{}'
             ],
