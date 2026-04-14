@@ -104,7 +104,7 @@ class IntegrationTestCase(unittest.TestCase):
             url,
             data=json.dumps(data),
             content_type="application/json",
-            headers={"authenticate": "test-token"},
+            headers={"Authorization": "test-token"},
         )
 
     def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3, difficulty_score=50):
@@ -1063,7 +1063,7 @@ class TestReceiveSuggestions(IntegrationTestCase):
             "/receive_suggestions",
             data=json.dumps(changes),
             content_type="application/json",
-            headers={"authenticate": "test-token", "User-ID": user_id},
+            headers={"Authorization": "test-token", "User-ID": user_id},
         )
 
     def test_updates_goal_fields(self):
@@ -1139,7 +1139,7 @@ class TestReceiveSuggestions(IntegrationTestCase):
             "/receive_suggestions",
             data=json.dumps([{"goal_id": 1, "name": "x"}]),
             content_type="application/json",
-            headers={"authenticate": "test-token"},
+            headers={"Authorization": "test-token"},
         )
         self.assertEqual(resp.status_code, 401)
 
@@ -1168,7 +1168,7 @@ class TestWeeklyRecap(IntegrationTestCase):
     def _get_recap(self, user_id="alice"):
         return self.client.get(
             "/weekly_recap",
-            headers={"authenticate": "test-token", "User-ID": user_id},
+            headers={"Authorization": "test-token", "User-ID": user_id},
         )
 
     def test_returns_suggestions(self):
@@ -1200,7 +1200,7 @@ class TestWeeklyRecap(IntegrationTestCase):
     def test_missing_user_id_header(self):
         resp = self.client.get(
             "/weekly_recap",
-            headers={"authenticate": "test-token"},
+            headers={"Authorization": "test-token"},
         )
         self.assertEqual(resp.status_code, 401)
 
@@ -1256,7 +1256,7 @@ class TestGoalGuidance(IntegrationTestCase):
 
     def _post_guidance(self, goal_id, user_id="alice", audio=b"fake-audio-bytes"):
         headers = {
-            "authenticate": "test-token",
+            "Authorization": "test-token",
             "User-ID": user_id,
             "Goal-ID": str(goal_id),
             "File-Type": ".wav",
@@ -1284,7 +1284,7 @@ class TestGoalGuidance(IntegrationTestCase):
         resp = self.client.post(
             "/goal_guidance",
             data=b"fake-audio",
-            headers={"authenticate": "test-token", "User-ID": "alice"},
+            headers={"Authorization": "test-token", "User-ID": "alice"},
         )
         self.assertEqual(resp.status_code, 400)
 
@@ -1325,7 +1325,7 @@ class TestExtractGoal(IntegrationTestCase):
 
     def _post_extract(self, user_id="alice", audio=b"fake-audio-bytes"):
         headers = {
-            "authenticate": "test-token",
+            "Authorization": "test-token",
             "User-ID": user_id,
             "File-Type": ".wav",
         }
@@ -1379,7 +1379,7 @@ class TestExtractGoal(IntegrationTestCase):
         resp = self.client.post(
             "/extract_goal",
             data=b"fake-audio",
-            headers={"authenticate": "test-token"},
+            headers={"Authorization": "test-token"},
         )
         self.assertEqual(resp.status_code, 401)
 
