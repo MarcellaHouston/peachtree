@@ -11,61 +11,34 @@ import SwiftUI
 //it combines the header, the list of tasks, the progress section, and the bottom navigation
 //the tasks are stored in state so the UI updates automatically when a task is toggled
 struct TodayTasksView: View {
-    //@Binding connects this view to a parent view's state
-    //selectedTab lets this screen change the current tab
-    @Binding var selectedTab: AppTab
+    
     //Popup Code
     @State private var selectedGoal: GoalItem? = nil
     //dictionary mapping of task id to goal name
     @State private var selectedTaskGoalName: [Int: String] = [:]
     //controls whether the popup is visible or not
     @State private var showEditGoal = false
+    //For Demo Mode
     
-    /*
-    private let fallbackTasks: [TaskItem] = [
-        TaskItem(id: -101, title: "Went to the gym", isCompleted: false),
-        TaskItem(id: -102, title: "Wrote a page in my journal", isCompleted: false),
-        TaskItem(id: -103, title: "Studied for 2 hours", isCompleted: false),
-        TaskItem(id: -104, title: "Applied to 5 jobs", isCompleted: false),
-        TaskItem(id: -105, title: "Make a keto meal", isCompleted: false),
-        TaskItem(id: -106, title: "Brushed my teeth", isCompleted: false)
-    ]
-    
-    private let fallbackGoals: [GoalItem] = [
-        GoalItemBuilder().id(-201).title("Journal daily").build(),
-        GoalItemBuilder().id(-202).title("Brush my teeth twice daily").build(),
-        GoalItemBuilder().id(-203).title("Study 2 hours a day").build(),
-        GoalItemBuilder().id(-204).title("Apply for 5 jobs a day").build(),
-        GoalItemBuilder().id(-205).title("Go to the gym 3 times a week").build(),
-        GoalItemBuilder().id(-206).title("Cook healthy meals").build()
-    ]
-    
-    private let fallbackTaskGoalNames: [Int: String] = [
-        -101: "Go to the gym 3 times a week",
-        -102: "Journal daily",
-        -103: "Study 2 hours a day",
-        -104: "Apply for 5 jobs a day",
-        -105: "Cook healthy meals",
-        -106: "Brush my teeth twice daily"
-    ]
-    */
-    
-    /*
-    @State private var tasks: [TaskItem] = [
-        TaskItem(title: "Went to the gym", isCompleted: false),
-        TaskItem(title: "Wrote a page in my journal", isCompleted: false),
-        TaskItem(title: "Studied for 2 hours", isCompleted: true),
-        TaskItem(title: "Applied to 5 jobs", isCompleted: false),
-        TaskItem(title: "Make a keto meal", isCompleted: true),
-        TaskItem(title: "Brushed my teeth", isCompleted: false)
-    ]
-    */
+    //this property counts how many tasks are currently completed
+    //it filters the task list and returns the number of tasks marked as done
+    private var completedTaskCount: Int {
+        ApiCall.shared.tasks.filter { $0.isCompleted }.count
+    }
+
+    //this gives the filled width for the progress bar
+    private var progressWidth: CGFloat {
+        if ApiCall.shared.tasks.isEmpty {
+            return 0
+        }
+
+        return 250 * CGFloat(completedTaskCount) / CGFloat(ApiCall.shared.tasks.count)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             //header at the top of the screen containing the status bar and profile section
             HeaderView()
-
             VStack(spacing: 0) {
                 //screen title centered below the header
                 //the larger font matches the emphasis shown in the figma design
@@ -107,7 +80,33 @@ struct TodayTasksView: View {
 
                 //progress section that shows how many tasks have been completed
                 //includes a text summary and a visual progress bar
-                TaskProgressBar(completedTaskCount: ApiCall.shared.tasks.filter { $0.isCompleted }.count, totalTaskCount: ApiCall.shared.tasks.count)
+                VStack(spacing: 8) {
+                    Text("\(completedTaskCount)/\(ApiCall.shared.tasks.count) tasks completed")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(.black)
+                    
+                    //outer capsule forms the base of the progress bar
+                    //a lighter purple capsule sits inside it as the background
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: 264, height: 32)
+                        .overlay {
+                            Capsule()
+                                .fill(Color(red: 0.77, green: 0.69, blue: 0.94))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                        }
+                        //the darker purple capsule represents actual progress
+                        //its width changes dynamically based on completed tasks
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(Color(red: 0.52, green: 0.21, blue: 0.95))
+                                .frame(width: progressWidth, height: 24)
+                                .padding(.leading, 7)
+                        }
+                }
+                .padding(.top, 10)
+                .padding(.bottom, 18)
             }
             //this section fills the remaining screen space with the light background color
             //it visually separates the task area from the header and navigation bar
@@ -115,7 +114,7 @@ struct TodayTasksView: View {
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
 
             //bottom navigation bar for switching between major app sections
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView()
         }
         //black background ensures the header and navigation bar blend into the edges of the screen
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -127,6 +126,7 @@ struct TodayTasksView: View {
             //API Call
             await ApiCall.shared.refreshGoals()
             let didLoadTasks = await ApiCall.shared.refreshTasks()
+            
 
             //REMOVE ONLY FOR DEBUGGING
             //print("=== TASKS IN VIEW ===")
@@ -149,6 +149,7 @@ struct TodayTasksView: View {
                     Spacer()
                 }
             }
+            
         }
     }
 }
@@ -189,27 +190,45 @@ private struct TodayTaskRow: View {
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
+            //task content button
+            //this displays the task name inside the purple rounded rectangle
+            Button {
+                onTaskTap()
+            } label: {
+                HStack(spacing: 0) {
+                    //spacers keep the text centered within the button
+                    Spacer(minLength: 0)
 
-                Text(task.title)
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(.black)
-                    //.lineLimit(1)
+                    Text(task.title)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(.black)
+                        .lineLimit(1)
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
+
+                    //chevron icon indicates that tapping the task may lead to more details
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.trailing, 16)
+                }
+                //rounded purple background for the task button
+                .frame(height: 46)
+                .frame(maxWidth: .infinity)
+                .background(Color(red: 0.77, green: 0.69, blue: 0.94))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
             }
-            //rounded purple background for the task item
-            .frame(height: 46)
-            .frame(maxWidth: .infinity)
-            .background(Color(red: 0.77, green: 0.69, blue: 0.94))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .buttonStyle(.plain)
         }
     }
 }
 
+/*
 #Preview {
-    TodayTasksView(selectedTab: .constant(.todayTasks))
+    TodayTasksView(appState: .constant(AppState(selectedTab: .todayTasks, showSignIn: false, isDemoMode: true, showDemoPopup: true)))
 }
+*/
 
-
+#Preview {
+    TodayTasksView()
+}

@@ -9,15 +9,14 @@ import SwiftUI
 import AVFoundation
 
 struct EODCheckinView: View {
-    @Binding var selectedTab: AppTab
-    
+    //removed AppState + onAccountTap using global state instead
     //from Audiomanager.swift
     @State private var audioManager = AudioManager()
     
     var body: some View {
         VStack(spacing: 0) {
+            //HeaderView(isDemoMode: $isDemoMode, showSignIn: $showSignIn)
             HeaderView()
-
             VStack(spacing: 0) {
                 
                 // Check if we should show the review screen or the mic screen
@@ -30,7 +29,7 @@ struct EODCheckinView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
             
-            BottomNavView(selectedTab: $selectedTab)
+            BottomNavView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
@@ -137,4 +136,8 @@ struct MicButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
+}
+
+#Preview {
+    EODCheckinView()
 }
