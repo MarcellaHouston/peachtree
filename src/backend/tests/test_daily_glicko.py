@@ -19,18 +19,18 @@ def mock_db_users():
 @patch('glicko_run.db')
 @patch('glicko_run.date')
 def test_daily_update_active_vs_inactive(mock_date, mock_db, mock_db_users):
-    # 1. Setup: Freeze time to a Monday
+    # 1. Setup: Set day to Monday
     mock_monday = MagicMock()
     mock_monday.strftime.return_value = "monday"
     mock_date.today.return_value = mock_monday
     
     # 2. Setup: Mock DB responses
     mock_db.select.return_value = mock_db_users
-    # Mock the task difficulty data for Aidan's task
+    # Mock the task difficulty data for the task
     mock_db.get_glicko_task_data.return_value = {
         "impetus": 3,
         "difficulty_score": 50,
-        "goal_id": "hard"
+        "goal_id": 750
     }
 
     # 3. Execute
@@ -51,7 +51,7 @@ def test_daily_update_active_vs_inactive(mock_date, mock_db, mock_db_users):
 @patch('glicko_run.db')
 @patch('glicko_run.date')
 def test_cron_skips_empty_schedules(mock_date, mock_db):
-    """Test behavior when a user exists but has a totally empty schedule string."""
+    """Test behavior when a user exists but has an empty schedule string."""
     mock_monday = MagicMock()
     mock_monday.strftime.return_value = "monday"
     mock_date.today.return_value = mock_monday
@@ -77,12 +77,11 @@ def test_cron_resilience_to_bad_json(mock_db):
         [2, "Valid", "v@ex.com", "pw", 1500, 350, 0.06, json.dumps({"monday": []})]
     ]
     
-    # We wrap in a try/except if your code doesn't handle it, 
-    # but ideally, your code should catch this.
+    # Double check that program doesn't crash if daily_glicko_update() fails
     try:
         daily_glicko_update()
     except json.JSONDecodeError:
-        pytest.fail("Cron job crashed on invalid JSON! Add a try/except block in the loop.")
+        pytest.fail("Cron job crashed on invalid JSON")
 
     # Check that the second user was still processed
     # (Checking if update_user_glicko was called for ID 2)
@@ -96,7 +95,7 @@ def test_heavy_productivity_day(mock_date, mock_db):
     mock_db.select.return_value = [
         [1, "Overachiever", "a@b.com", "pw", 1500, 100, 0.06, json.dumps({"monday": tasks})]
     ]
-    mock_db.get_glicko_task_data.return_value = {"impetus": 3, "difficulty_score": 50, "goal_id": "medium"}
+    mock_db.get_glicko_task_data.return_value = {"impetus": 3, "difficulty_score": 50, "goal_id": 420}
     
     mock_date.today.return_value.strftime.return_value = "monday"
     
@@ -105,8 +104,8 @@ def test_heavy_productivity_day(mock_date, mock_db):
     args = mock_db.update_user_glicko.call_args.args
     new_rating = args[1]
     
-    # Glicko-2 should dampen multiple wins against the same "rating period."
-    # A jump of > 500 points in one day usually signals a scaling bug.
+    # Glicko-2 should dampen multiple wins within the same rating period.
+    # A jump of > 500 points in one day would most likely signal a scaling bug.
     assert 1500 < new_rating < 2000
 
 
@@ -122,8 +121,7 @@ def test_deleted_task_graceful_failure(mock_date, mock_db):
     
     mock_date.today.return_value.strftime.return_value = "monday"
 
-    # If your code isn't ready for this, it will raise a TypeError
     daily_glicko_update() 
     
-    # Verify it still updated the user (probably treated as an inactive day or skipped task)
+    # Verify it still updated the user even when the task was missing
     assert mock_db.update_user_glicko.called

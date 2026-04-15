@@ -11,8 +11,9 @@ def test_new_user_first_task():
     engine = Glicko(1500, 350, 0.06, tasks)
     new_r, new_rd, new_vol = engine.perform_glicko()
     
+    # Completing a task should increase rating
     assert new_r > 1500
-    # For a new user, we just want to ensure it doesn't explode to 750+
+    # For a new user, the RD shouldn't explode up in value
     assert new_rd < 400 
 
 def test_established_user_success():
@@ -25,7 +26,7 @@ def test_established_user_success():
     new_r, new_rd, new_vol = engine.perform_glicko()
     
     assert new_r > 1500
-    assert new_rd < 55 # Ensuring no massive inflation
+    assert new_rd < 55 # Ensuring no massive inflation in RD value
 
 def test_high_volume_productivity_spike():
     """
@@ -45,7 +46,7 @@ def test_high_volume_productivity_spike():
     engine = Glicko(1500, initial_rd, 0.06, tasks)
     new_r, new_rd, new_vol = engine.perform_glicko()
     
-    # Significant rating jump
+    # There should be a significant rating jump
     assert new_r > 1600
     # Uncertainty should drop noticeably with 5 data points
     assert new_rd < initial_rd
