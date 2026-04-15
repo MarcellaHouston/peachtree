@@ -189,9 +189,9 @@ class Glicko:
         # The calculation of task ratings and the conversion of user and task data
         # to Glicko-2 scaling is done in __init__
 
-        # If no matches were played over rating period, just update RD based on rating and volatility
+        # If no matches were played over rating period, just update RD based on current RD and volatility
         if not self.tasks:
-            new_RD = math.sqrt(pow(self.user_rating, 2) + pow(self.volatility, 2))
+            new_RD = math.sqrt(pow(self.user_RD, 2) + pow(self.volatility, 2))
             scaled_rating, scaled_RD = self.from_glicko_scale(self.user_rating, new_RD)
             return int(scaled_rating), scaled_RD, self.volatility
 
@@ -213,4 +213,4 @@ class Glicko:
         # Convert rating and RD back to Glicko scale
         scaled_rating, scaled_RD = self.from_glicko_scale(new_rating, new_RD)
 
-        return int(scaled_rating), scaled_RD, new_volatility
+        return round(scaled_rating), scaled_RD, new_volatility

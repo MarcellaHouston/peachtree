@@ -39,7 +39,7 @@ def daily_glicko_update():
                 if not task_data:
                     continue
                 # Calculate task rating and task rating deviation
-                task_rating, task_RD = calculate_task_glicko(task_data["impetus"], task_data["difficulty_score"], task_data["goal_id"])
+                task_rating, task_RD = calculate_task_glicko(task_data["impetus"], task_data["difficulty_score"], task_data["goal_difficulty"])
                 # Task score is a 1 if user "beat" (completed) the task, 0 if user "lost" (failed)
                 task_score = 1 if task["completed"] else 0
                 glicko_task_data.append({
