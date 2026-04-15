@@ -11,6 +11,7 @@ struct SignInView: View {
     private let appState = AppState.shared
     // receive authScreen from ContentView (moved out of AppState)
     @Binding var authScreen: AuthScreen
+    @State var showFailurePopup: Bool = false
     //This is temporary will change after receiving backend portion
     //Do not worry about this
     @State private var username = ""
@@ -107,8 +108,14 @@ struct SignInView: View {
                     .frame(height: 50)
 
                 Button {
-                    // TODO: remove temporary login bypass after backend auth is implemented
-                    appState.showSignIn = false
+                    Task {
+                        let success = await ApiCall.shared.login(username: username, password: password)
+                        if success {
+                            appState.showSignIn = false
+                        } else {
+                            showFailurePopup = true
+                        }
+                    }
                 } label: {
                     Text("Login")
                         .font(.system(size: 17, weight: .semibold))
@@ -123,7 +130,6 @@ struct SignInView: View {
                     Text("Don’t have an account?")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(.black.opacity(0.78))
-                    // TODO: Send sign up request using the filled in username and password
                     Button("Sign Up") {
                         authScreen = .signUp
                     }
@@ -161,6 +167,13 @@ struct SignInView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
         .ignoresSafeArea()
+        .overlay {
+            if showFailurePopup {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                ConfirmPopup(isShown: $showFailurePopup, prompt: "Invalid credentials", desc: "Please try again", confirm: "Okay") {}
+            }
+        }
     }
 }
 

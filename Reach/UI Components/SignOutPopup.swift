@@ -24,7 +24,7 @@ struct SignOutPopup: View {
                     }
                     .padding(.top, 22)
 
-                Text("Account")
+                Text(UserCreds.shared.getStringId() ?? "Account name failed to load")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.black)
                     .padding(.top, 12)
@@ -42,6 +42,7 @@ struct SignOutPopup: View {
                     .foregroundColor(.black.opacity(0.8))
 
                     Button("Sign Out") {
+                        UserCreds.shared.delete()
                         appState.showSignOutPopup = false
                         appState.isDemoMode = false
                         appState.showDemoPopup = false

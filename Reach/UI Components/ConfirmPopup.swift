@@ -21,7 +21,10 @@ struct ConfirmPopup: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(prompt).BigHeader()
+                .padding(.top, 10)
+                .padding(.horizontal, 10)
             Text(desc)
+                .padding(.horizontal, 10)
             HStack{
                 Button("Cancel") {
                     isShown = false
@@ -33,6 +36,7 @@ struct ConfirmPopup: View {
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
+            .padding(.bottom, 10)
         }
         .frame(width: 310)
         .background(.white)

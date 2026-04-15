@@ -16,6 +16,7 @@ struct SignUpView: View {
     //Do not worry about this
     @State private var username = ""
     @State private var password = ""
+    @State private var showFailurePopup: Bool = false
 
     private let headerPurple = Color(red: 186 / 255, green: 171 / 255, blue: 228 / 255)
     private let waveFillPurple = Color(red: 181 / 255, green: 167 / 255, blue: 225 / 255)
@@ -106,9 +107,15 @@ struct SignUpView: View {
                     .frame(height: 50)
 
                 Button {
-                    // switch back to sign in using local auth state
-                    authScreen = .signIn
-                    appState.showSignIn = false
+                    Task {
+                        let success = await ApiCall.shared.login(username: username, password: password, andRegister: true)
+                        if success {
+                            authScreen = .signIn
+                            appState.showSignIn = false
+                        } else {
+                            showFailurePopup = true
+                        }
+                    }
                 } label: {
                     Text("Create Account")
                         .font(.system(size: 17, weight: .semibold))
@@ -144,6 +151,13 @@ struct SignUpView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
         .ignoresSafeArea()
+        .overlay {
+            if showFailurePopup {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                ConfirmPopup(isShown: $showFailurePopup, prompt: "Cannot complete request", desc: "Either the username is already taken or a field is left blank. Please try again.", confirm: "Okay") {}
+            }
+        }
     }
 }
 
