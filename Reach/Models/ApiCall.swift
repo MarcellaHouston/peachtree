@@ -158,15 +158,29 @@ final class ApiCall {
     }
     func createGoal(goal: GoalItem) async {
         let body: [String: Any] = goal.requestBody()
-        // Backend will ignore goalid
+        
+        //adding a goal locally so appears instantly
+        self.goals.append(goal)
+        
+        //updating dictionary to handle index shifts
+        self.idToGoalInd = [:]
+        /*
+        print("DEBUG: Created local goal with ID: \(goal.id)")
+         */
         
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
+            //to get real id
+            await refreshGoals()
+            
         } catch {
             print("createGoal ERROR:")
             print(error)
+            //in case
+            await refreshGoals()
+            
         }
-        await refreshGoals()
+
     }
     func snoozeGoal(goal: GoalItem) async {
         if goal.id == -1 {
@@ -268,7 +282,7 @@ final class ApiCall {
         )
         request.setValue(
             String(UserCreds.shared.getIntId() ?? -1),
-            forHTTPHeaderField: "User-ID"
+            forHTTPHeaderField: "user-id"
         )
         
         
@@ -283,9 +297,15 @@ final class ApiCall {
         guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        
-        //print(String(data: data, encoding: .utf8)!)
-        // TODO: Fix inconsequential bug of trying to decode an Empty data
+    
+        // Check if the server returned no data and empty response type
+        if data.isEmpty && T.self == Empty.self {
+            
+            // return a empty object instead of trying to decode bc it may crash
+            return Empty() as! T
+            
+        }
+     
         let decodedData = try JSONDecoder().decode(T.self, from: data)
         return decodedData
     }
