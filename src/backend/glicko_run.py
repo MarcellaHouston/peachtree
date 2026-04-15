@@ -25,31 +25,20 @@ def daily_glicko_update():
             # FOR TESTING ONLY
             try:
                 schedule_dict = json.loads(weekly_schedule)
-                print(json.dumps(schedule_dict))
             except (json.JSONDecodeError, TypeError):
                 print("Skipping user, invalid JSON\n")
                 continue
 
             today_task_list = schedule_dict.get(today_name, [])
-            # If user had no tasks today, thus not competing, most of the algorithm doesn't apply (only RD changes)
-            if not today_task_list:
-                scaled_RD = user_RD / 173.7178
-                new_RD = math.sqrt(pow(scaled_RD, 2) + pow(user_volatility, 2))
-                new_scaled_RD = new_RD * 173.7178
-                db.update_user_glicko(user_id, user_rating, new_scaled_RD, user_volatility)
-                continue
+            print(f"Today's task list: {today_task_list}")
 
             glicko_task_data = []
             for task in today_task_list:
-                # Calculate task ELO (either store rating in tasks table and
-                # retrieve it using task_id from weekly_schedule, or calculate elo here without need to
-                # store rating)
-                # For now, have it set as a constant value to be passed in. 
-                # Also, for now, have constant RD value for tasks
-                task_rating = 1200
-                task_RD = 50.0
-
+                # Calculate task ELO
                 task_data = db.get_glicko_task_data(task["task_id"])
+                # If task doesn't exist (got deleted), just move to the next task
+                if not task_data:
+                    continue
                 task_rating, task_RD = calculate_task_glicko(task_data["impetus"], task_data["difficulty_score"], task_data["goal_id"])
                 task_score = 1 if task["completed"] else 0
                 glicko_task_data.append({

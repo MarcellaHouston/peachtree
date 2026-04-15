@@ -124,6 +124,12 @@ class Glicko:
         
 
     def perform_glicko(self) -> tuple:
+        # If no matches were performed over rating period, just update RD based on rating and volatility
+        if not self.tasks:
+            new_RD = math.sqrt(pow(self.user_rating, 2) + pow(self.volatility, 2))
+            scaled_rating, scaled_RD = self.from_glicko_scale(self.user_rating, new_RD)
+            return int(scaled_rating), scaled_RD, self.volatility
+
         # Compute estimated variance of user's rating based only on "match" outcomes
         est_var = self.calc_variance()
 

@@ -87,3 +87,43 @@ def test_cron_resilience_to_bad_json(mock_db):
     # Check that the second user was still processed
     # (Checking if update_user_glicko was called for ID 2)
     assert any(call.args[0] == 2 for call in mock_db.update_user_glicko.call_args_list)
+
+@patch('glicko_run.db')
+@patch('glicko_run.date')
+def test_heavy_productivity_day(mock_date, mock_db):
+    # Setup 10 completed tasks for one day
+    tasks = [{"task_id": i, "completed": True} for i in range(10)]
+    mock_db.select.return_value = [
+        [1, "Overachiever", "a@b.com", "pw", 1500, 100, 0.06, json.dumps({"monday": tasks})]
+    ]
+    mock_db.get_glicko_task_data.return_value = {"impetus": 3, "difficulty_score": 50, "goal_id": "medium"}
+    
+    mock_date.today.return_value.strftime.return_value = "monday"
+    
+    daily_glicko_update()
+    
+    args = mock_db.update_user_glicko.call_args.args
+    new_rating = args[1]
+    
+    # Glicko-2 should dampen multiple wins against the same "rating period."
+    # A jump of > 500 points in one day usually signals a scaling bug.
+    assert 1500 < new_rating < 2000
+
+
+@patch('glicko_run.db')
+@patch('glicko_run.date')
+def test_deleted_task_graceful_failure(mock_date, mock_db):
+    mock_db.select.return_value = [
+        [1, "User", "u@ex.com", "pw", 1500, 350, 0.06, json.dumps({"monday": [{"task_id": 999, "completed": True}]})]
+    ]
+    
+    # Simulate database returning None for a deleted task
+    mock_db.get_glicko_task_data.return_value = None
+    
+    mock_date.today.return_value.strftime.return_value = "monday"
+
+    # If your code isn't ready for this, it will raise a TypeError
+    daily_glicko_update() 
+    
+    # Verify it still updated the user (probably treated as an inactive day or skipped task)
+    assert mock_db.update_user_glicko.called
