@@ -30,7 +30,7 @@ struct ContentView: View {
     
     var body: some View {
         Group {
-            if appState.showSignIn {
+            if appState.showSignIn && UserCreds.shared.getToken() == nil {
                 if authScreen == .signIn
                 {
                     //pass authScreen binding down to child views

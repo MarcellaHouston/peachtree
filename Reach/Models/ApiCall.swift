@@ -216,6 +216,36 @@ final class ApiCall {
         await refreshTasks()
     }
     
+    func login(username: String, password: String, andRegister: Bool = false) async -> Bool {
+        struct Res: Codable {
+            let authorization: String
+            let intID: Int
+            let stringID: String
+            
+            enum CodingKeys: String, CodingKey {
+                case authorization = "Authorization"
+                case intID = "User-ID"
+                case stringID = "user_id"
+            }
+
+        }
+        
+        let body: [String:Any] = [
+            "username": username,
+            "password": password
+        ]
+        
+        do {
+            let res: Res = try await sendRequest("POST", body, andRegister ? "signup" : "login")
+            //print(res)
+            return UserCreds.shared.set(string: res.stringID, int: res.intID, token: res.authorization)
+        } catch {
+            print("login ERROR:")
+            print(error)
+            return false
+        }
+    }
+    
     // Abstracted function to send a request and return some Decodable struct as response
     private func sendRequest<T: Decodable>(_ method: String, _ body: [String: Any], _ endpoint: String) async throws -> T{
         //print(body)
@@ -230,8 +260,22 @@ final class ApiCall {
             "application/json; charset=utf-8",
             forHTTPHeaderField: "Content-Type"
         )
+        
+        // Auth
+        request.setValue(
+            UserCreds.shared.getToken(),
+            forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            String(UserCreds.shared.getIntId() ?? -1),
+            forHTTPHeaderField: "User-ID"
+        )
+        
+        
         request.setValue("application/*", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        // print(request.allHTTPHeaderFields)
         
         // Actual request and async stuff
         let (data, response) = try await URLSession.shared.data(for: request)

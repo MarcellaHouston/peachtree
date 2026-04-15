@@ -83,7 +83,7 @@ struct HeaderView: View {
                                         .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
                                 }
 
-                            Text("Account")
+                            Text(UserCreds.shared.getStringId() ?? "No account")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.white)
                         }
@@ -102,7 +102,7 @@ struct HeaderView: View {
                                             .foregroundColor(Color(red: 0.34, green: 0.26, blue: 0.64))
                                     }
 
-                                Text("Account")
+                                Text(UserCreds.shared.getStringId() ?? "Account name failed to load")
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundColor(.white)
                             }
