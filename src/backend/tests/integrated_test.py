@@ -1164,7 +1164,7 @@ class TestReceiveSuggestions(IntegrationTestCase):
 
 
 # ---------------------------------------------------------------------------
-# GET /weekly_recap
+# POST /weekly_recap
 # ---------------------------------------------------------------------------
 
 
@@ -1185,7 +1185,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.real_db._commit()
 
     def _get_recap(self, user_id="alice"):
-        return self.client.get(
+        return self.client.post(
             "/weekly_recap",
             data=json.dumps({"user_id": user_id}),
             content_type="application/json",
@@ -1219,7 +1219,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_missing_user_id_header(self):
-        resp = self.client.get(
+        resp = self.client.post(
             "/weekly_recap",
             headers={"Authorization": "test-token"},
         )

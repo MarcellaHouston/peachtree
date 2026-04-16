@@ -629,7 +629,7 @@ def receive_suggestions():
     return "", 204
 
 
-@app.route("/weekly_recap", methods=["GET"])
+@app.route("/weekly_recap", methods=["POST"])
 def get_weekly_recap_suggestions():
     logger.info("/weekly_recap reached.")
     if not request.headers.get("User-ID") and not request.headers.get("User-Id"):
@@ -639,6 +639,9 @@ def get_weekly_recap_suggestions():
         return jsonify({"error": "User isn't authenticated"}), 401
 
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Expected JSON object body"}), 400
+
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id in request"}), 400
