@@ -537,7 +537,7 @@ def receive_suggestions():
     ALLOWED_FIELDS = {"name", "end_date", "difficulty", "days_of_week"}
     VALID_DIFFICULTIES = {"easy", "average", "hard"}
 
-    if not request.headers.get("User-ID"):
+    if not request.headers.get("User-ID") and not request.headers.get("User-Id"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
     if not check_auth(dict(request.headers)):
@@ -580,7 +580,7 @@ def receive_suggestions():
 
 @app.route("/weekly_recap", methods=["GET"])
 def get_weekly_recap_suggestions():
-    if not request.headers.get("User-ID"):
+    if not request.headers.get("User-ID") and not request.headers.get("User-Id"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
     if not check_auth(dict(request.headers)):
@@ -667,9 +667,9 @@ def get_weekly_recap_suggestions():
 
 @app.route("/goal_guidance", methods=["POST"])
 def get_goal_guidance():
-    user_id = request.headers.get("User-ID")
+    user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
-    goal_id = request.headers.get("Goal-ID")
+    goal_id = request.headers.get("Goal-ID") or request.headers.get("Goal-Id")
     file_type = request.headers.get("File-Type", ".m4a")
 
     if not user_id:
@@ -783,7 +783,7 @@ def get_goal_guidance():
 
 @app.route("/extract_goal", methods=["POST"])
 def extract_goal():
-    user_id = request.headers.get("User-ID")
+    user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
 
