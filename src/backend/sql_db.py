@@ -45,7 +45,7 @@ class Database:
                 if "PRIMARY KEY" not in v and not k.upper().startswith("FOREIGN KEY")
             ]
         )
-        print(cols)
+        # print(cols)
         self._run_param(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", args)
         self._commit()
         return self.cursor.lastrowid
@@ -501,11 +501,11 @@ class Database:
         return cursor.fetchall()
 
     def _run(self, s: str) -> sql.Cursor:
-        print(s)
+        # print(s)
         return self.cursor.execute(s)
 
     def _run_param(self, s: str, params: list) -> sql.Cursor:
-        print(s, params)
+        # print(s, params)
         return self.cursor.execute(s, params)
 
     def _commit(self) -> None:

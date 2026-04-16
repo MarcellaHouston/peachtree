@@ -219,8 +219,8 @@ def signup():
                 1500,
                 350.0,
                 0.06,
-                {},
-                {},
+                "{}",
+                "{}",
             ],
         )
         # Get id from new user (it's auto-generated when user is created)
