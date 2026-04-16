@@ -184,7 +184,7 @@ struct UploadConfig {
 enum AudioEndpoint {
     case goalGuidance(goalId: Int)
     case endOfDay
-    case nlp(goalId: Int)
+    case nlp
 
     var config: UploadConfig {
         let baseUrl = URL(string: "http://34.192.65.138:80")!
@@ -200,10 +200,10 @@ enum AudioEndpoint {
                 url: baseUrl.appendingPathComponent("/stt/eod_summary"),
                 extraParameters: nil
             )
-        case .nlp(let id):
+        case .nlp:
             return UploadConfig(
                 url: baseUrl.appendingPathComponent("/extract_goal"),
-                extraParameters: ["goal_id": id]
+                extraParameters: nil
             )
         }
     }
