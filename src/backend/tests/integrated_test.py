@@ -1233,6 +1233,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
         self.assertIn("changes_summary", data)
+        self.assertEqual(data["stats"], {"completed": 1, "total": 2})
 
     def test_no_goals_returns_400(self):
         self._insert_user()

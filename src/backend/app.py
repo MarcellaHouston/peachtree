@@ -729,6 +729,7 @@ def get_weekly_recap_suggestions():
     if not valid:
         return jsonify({"error": "Failed to generate suggestions"}), 500
 
+    suggestions["stats"] = {"completed": completed_tasks, "total": total_tasks}
     return jsonify(suggestions)
 
 
