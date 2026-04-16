@@ -24,7 +24,6 @@
     "end_date": "TEXT NOT NULL",
     "impetus": "INTEGER NOT NULL CHECK(impetus BETWEEN 1 AND 5)",
     "difficulty_score": "INTEGER NOT NULL CHECK(difficulty_score BETWEEN 1 AND 100)",
-    "rating": "INTEGER",
     "FOREIGN KEY (goal_id)": "REFERENCES goals(id) ON DELETE CASCADE"
   },
   "users": {
@@ -34,6 +33,7 @@
     "token": "TEXT NOT NULL UNIQUE",
     "rating": "INTEGER NOT NULL",
     "deviation": "REAL NOT NULL",
+    "volatility": "REAL NOT NULL",
     "week_schedule": "TEXT CHECK(json_valid(week_schedule))", 
     "week_availability": "TEXT CHECK(json_valid(week_availability))"
   }
