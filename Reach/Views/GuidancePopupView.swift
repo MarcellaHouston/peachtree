@@ -198,7 +198,7 @@ struct GuidancePopupView: View {
         func isSuggestionSelected(_ suggestion: [String: String]) -> Bool {
             let key = getModificationKey(for: suggestion)
             // Check ApiCall.shared.goalMods for a match with this goal's ID and the specific field key
-            return ApiCall.shared.goalMods.contains { $0.id == goal.id && $0.key == key }
+            return ApiCall.shared.goalMods.contains { $0.id == goalId ?? goal.id && $0.key == key }
         }
 
         /// Toggles the modification in the global ApiCall.shared.goalMods list
@@ -208,7 +208,7 @@ struct GuidancePopupView: View {
             if isSuggestionSelected(suggestion) {
                 // If it exists, remove it (uncheck)
                 print("DEBUG: Removing modification for key: \(key)")
-                ApiCall.shared.removeMod(goalId: goal.id, key: key)
+                ApiCall.shared.removeMod(goalId: goalId ?? goal.id, key: key)
             } else {
                 // Find the suggested value (e.g., the actual new name or date)
                 let dataKeys = ["name", "end_date", "days_of_week", "difficulty"]
@@ -217,7 +217,7 @@ struct GuidancePopupView: View {
                         print("DEBUG: Adding modification - Key: \(k), Value: \(val)")
                         // Map "end_date" to your internal ".due" key
                         let modKey: GoalModification.Key = (k == "end_date") ? .due : key
-                        let newMod = GoalModification(id: goal.id, key: modKey, val: val)
+                        let newMod = GoalModification(id: goalId ?? goal.id, key: modKey, val: val)
                         ApiCall.shared.addMod(newMod)
                         break
                     }
