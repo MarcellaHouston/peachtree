@@ -423,7 +423,7 @@ def create_goal():
             jsonify({"error": "LLM failed to generate tasks", "retries": retries}),
             500,
         )
-    return "", 204
+    return jsonify({"goal_id": goal_id}), 201
 
 
 @app.route("/goals/update", methods=["POST"])

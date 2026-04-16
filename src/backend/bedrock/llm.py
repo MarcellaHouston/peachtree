@@ -52,12 +52,19 @@ class _LLM:
         if rag:
             self.rag_retrieval(query=rag_query, userid=user_id)
 
-        # Construct message using user-input (content) along with past context if available
+        # Construct message using user-input, context, and retry feedback.
+        # Validation errors are appended to previous_conversation by LLMClient;
+        # include them here so retry attempts can actually correct themselves.
+        message_parts = []
         if self.context:
-            past_context = "\n".join(self.context)
-            full_message = f"Context: {past_context}\n\nQuery: {content}"
-        else:
-            full_message = content
+            message_parts.append("Context:\n" + "\n".join(self.context))
+        if self.previous_conversation:
+            message_parts.append(
+                "Previous invalid attempt and validation feedback:\n"
+                + "\n".join(self.previous_conversation)
+            )
+        message_parts.append("Query:\n" + content)
+        full_message = "\n\n".join(message_parts)
 
         # Format message to be accepted by AWS Bedrock's converse method
         converse_message = [{"role": "user", "content": [{"text": full_message}]}]
@@ -353,7 +360,7 @@ class LLMClient:
                                 + goal_start_date
                                 + ", end_date must be on or before the goal's end date of "
                                 + goal_end_date
-                                + ", and start_date must be before end_date."
+                                + ", and start_date must be before end_date. Do not set end_date equal to start_date; choose an end_date at least one day after start_date."
                             )
 
                         # validate impetus 1-5

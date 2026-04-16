@@ -127,7 +127,7 @@ class IntegrationTestCase(unittest.TestCase):
 
     def create_goal(self, **overrides):
         """
-        POST a valid goal to /goals/create and assert it was accepted (204).
+        POST a valid goal to /goals/create and assert it was created (201).
         Keyword args are merged into the payload so individual tests can
         customise specific fields without repeating the full payload.
         """
@@ -141,7 +141,8 @@ class IntegrationTestCase(unittest.TestCase):
         }
         payload = {"goal": goal, "user_id": goal["user_id"]}
         resp = self.post_json("/goals/create", payload)
-        self.assertEqual(resp.status_code, 204, resp.get_data(as_text=True))
+        self.assertEqual(resp.status_code, 201, resp.get_data(as_text=True))
+        self.assertIn("goal_id", resp.get_json())
         return goal
 
 
