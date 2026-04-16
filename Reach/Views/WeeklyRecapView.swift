@@ -7,14 +7,23 @@
 import SwiftUI
 
 struct WeeklyRecapView: View {
-    //Removed since AppState is used
-    //@Binding var selectedTab: AppTab
+    /*
     let weekText = "Feb 10 - Feb 16, 2026"
     let summaryText = "You removed the gym goal, paused journaling, and continued working on your remaining goals this week. Focus next on meal prep, studying, and keeping your daily routines consistent."
     let suggestionText = "Focus on consistency by reducing daily job applications and structuring study into focused sessions. Maintain journaling and weekly meal prep for steady progress."
     let completedTaskCount = 10
     let totalTaskCount = 12
     @State var showingPopup: Bool = false
+     */
+    let weekText = "Feb 10 - Feb 16, 2026"
+    @State private var summaryText = "Loading weekly summary..."
+    @State private var suggestionTitle = "Loading title..."
+    @State private var suggestionText = "Loading suggestions..."
+    //Change Tasks Completed to Reflect Backend Tasks Completed Info
+    @State private var completedTaskCount = 0
+    @State private var totalTaskCount = 0
+    @State private var showingPopup = false
+    @State private var isLoadingRecap = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -69,7 +78,13 @@ struct WeeklyRecapView: View {
                             .padding(.horizontal, 10)
                     }
                     .padding(.vertical, 2)
-                    Text("Rebalance Daily Workload").SmallHeader()
+                    
+                    //TODO: DEBUGGING NOTES 4/16/26 4AM
+                    //different words for this "This is the theme of AI change",
+                    //"Overarching goal of LLM" something similar
+                    //AI suggestion should be some type of check mark where the user
+                    //selects specific checkmark items to backend and is updated afterwards
+                    Text(suggestionTitle).SmallHeader()
                     Text(suggestionText).font(.system(size:13)).padding(.horizontal, 5).padding(.bottom, 5)
                 }
                 .frame(width: 360, height: 141)
@@ -93,6 +108,43 @@ struct WeeklyRecapView: View {
                 GoalSuggestionsPopup(isShowing: $showingPopup)
             }
         }
+        
+        // weekly recap auto fetch start
+        .task {
+            print("=== WEEKLY RECAP CALL START ===")
+            
+            isLoadingRecap = true
+
+            await ApiCall.shared.refreshGoals()
+
+            if let recap = await ApiCall.shared.fetchWeeklyRecap() {
+                print("weekly summary:", recap.weeklySummary)
+                print("changes title:", recap.changesTitle)
+                print("changes summary:", recap.changesSummary)
+                print("weekly suggestions:", recap.suggestions)
+                print("weekly stats completed:", recap.completed)
+                print("weekly stats total:", recap.total)
+
+                summaryText = recap.weeklySummary
+                suggestionTitle = recap.changesTitle
+                suggestionText = recap.changesSummary
+                completedTaskCount = recap.completed
+                totalTaskCount = recap.total
+            } else {
+                print("weekly recap returned no recommendations")
+
+                summaryText = "No recommendations this week"
+                suggestionTitle = "No changes needed"
+                suggestionText = "You're all caught up"
+                completedTaskCount = 0
+                totalTaskCount = 0
+            }
+
+            isLoadingRecap = false
+
+            print("=== WEEKLY RECAP CALL END ===")
+        }
+        // weekly recap auto fetch end
     }
 }
 

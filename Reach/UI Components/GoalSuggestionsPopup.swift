@@ -16,13 +16,20 @@ struct GoalSuggestionsPopup : View {
                 .padding(.vertical, 10)
             Spacer()
             ScrollView(showsIndicators: true) {
-                VStack(spacing: 26) {
-                    ForEach((0..<ApiCall.shared.goalMods.count), id: \.self) { i in
-                        SuggestionRow(suggestion: ApiCall.shared.goalMods[i], ind: i)
+                if ApiCall.shared.weeklyRecapSuggestions.isEmpty {
+                    Text("There are no present AI suggestions")
+                        .font(.system(size: 16))
+                        .foregroundColor(.black)
+                        .padding(.top, 30)
+                } else {
+                    VStack(spacing: 26) {
+                        ForEach((0..<ApiCall.shared.weeklyRecapSuggestions.count), id: \.self) { i in
+                            SuggestionRow(suggestion: ApiCall.shared.weeklyRecapSuggestions[i], ind: i)
+                        }
                     }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 140)
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 140)
             }
             
             HStack {
@@ -31,9 +38,13 @@ struct GoalSuggestionsPopup : View {
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
-                    isShowing = false
                     Task {
-                        await ApiCall.shared.applyGoalMods()
+                        let didSave = await ApiCall.shared.receiveSuggestions(ApiCall.shared.selectedRecapSuggestions())
+                        if didSave {
+                            await ApiCall.shared.refreshGoals()
+                            _ = await ApiCall.shared.refreshTasks()
+                            isShowing = false
+                        }
                     }
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
@@ -75,57 +86,62 @@ struct GoalSuggestionsPopup : View {
 }
 
 private struct SuggestionRow: View {
-    let suggestion: GoalModification
+    let suggestion: [String: String]
     let ind: Int
 
     var body: some View {
         VStack {
-            Text(ApiCall.shared.goalOf(id: suggestion.id).title)
+            if let goalIdString = suggestion["goal_id"],
+               let goalId = Int(goalIdString),
+               let goal = ApiCall.shared.goals.first(where: { $0.id == goalId }) {
+                Text(goal.title)
+            }
+
             HStack(spacing: 18) {
-                //checkbox button on the left
-                //tapping it toggles whether the task is completed
                 Button {
-                    ApiCall.shared.toggleMod(ind: ind)
+                    ApiCall.shared.toggleWeeklyRecapSuggestion(ind: ind)
                 } label: {
                     Rectangle()
-                        .fill(suggestion.active ? Color(red: 0.42, green: 0.33, blue: 0.72) : Color.white)
+                        .fill(
+                            ApiCall.shared.selectedWeeklyRecapSuggestions[ind]
+                                ? Color(red: 0.42, green: 0.33, blue: 0.72)
+                                : Color.white
+                        )
                         .frame(width: 40, height: 40)
-                    //if the task is completed a checkmark is displayed
                         .overlay {
-                            if suggestion.active {
+                            if ApiCall.shared.selectedWeeklyRecapSuggestions[ind] {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 22, weight: .bold))
                                     .foregroundColor(.white)
                             }
                         }
-                    //if the task is not completed a dark border outlines the square
                         .overlay {
-                            if !suggestion.active {
+                            if !ApiCall.shared.selectedWeeklyRecapSuggestions[ind] {
                                 Rectangle()
                                     .stroke(Color(red: 0.34, green: 0.33, blue: 0.39), lineWidth: 4.5)
                             }
                         }
                 }
                 .buttonStyle(.plain)
-                
-                //task content button
-                //this displays the task name inside the purple rounded rectangle
+
                 Button {
                     // Nothing
                 } label: {
                     HStack(spacing: 0) {
-                        //spacers keep the text centered within the button
                         Spacer(minLength: 0)
-                        
-                        Text(suggestion.toString())
+
+                        Text(suggestion["summary"] ?? "")
                             .font(.system(size: 15, weight: .regular))
                             .foregroundColor(.black)
-                            .lineLimit(1)
-                        
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+
                         Spacer(minLength: 0)
                     }
-                    //rounded purple background for the task button
-                    .frame(height: 46)
+                    //.frame(minHeight: 46)
+                    .frame(minHeight: 72)
                     .frame(maxWidth: .infinity)
                     .background(Color(red: 0.77, green: 0.69, blue: 0.94))
                     .clipShape(RoundedRectangle(cornerRadius: 16))

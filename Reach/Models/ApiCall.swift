@@ -20,9 +20,17 @@ final class ApiCall {
     private(set) var goals = [GoalItem]()
     private(set) var tasks = [TaskItem]()
     private(set) var goalMods = [GoalModification]()
+    private(set) var weeklyRecapSuggestions = [[String: String]]()
+    private(set) var selectedWeeklyRecapSuggestions = [Bool]()
+    
     func toggleMod(ind: Int) {
         goalMods[ind].active.toggle()
     }
+    
+    func toggleWeeklyRecapSuggestion(ind: Int) {
+        selectedWeeklyRecapSuggestions[ind].toggle()
+    }
+    
     //Added
     private(set) var taskGoalNames: [Int:String] = [:]
     // Goal id -> index in goals that id is at
@@ -268,6 +276,125 @@ final class ApiCall {
         }
     }
     
+    // fetches the weekly recap from the backend using the logged in user's credentials
+    // returns the summary string and the suggested changes in a ui-friendly format
+    func fetchWeeklyRecap() async -> (weeklySummary: String, changesTitle: String, changesSummary: String, suggestions: [[String: String]], completed: Int, total: Int)? {
+        struct SuggestedChange: Codable {
+            let goal_id: Int
+            let difficulty: String?
+            let days_of_week: String?
+            let name: String?
+            let end_date: String?
+            let summary: String
+        }
+
+        struct Res: Codable {
+            struct Stats: Codable {
+                let completed: Int
+                let total: Int
+            }
+
+            let suggested_changes: [SuggestedChange]
+            let weekly_summary: String
+            let changes_title: String
+            let changes_summary: String
+            let stats: Stats
+        }
+
+        let body: [String: Any] = [
+            "user_id": UserCreds.shared.getStringId() as Any
+        ]
+
+        do {
+            let decoded: Res = try await sendRequest("POST", body, "weekly_recap")
+
+            let suggestions = decoded.suggested_changes.map { change in
+                var result: [String: String] = [
+                    "goal_id": String(change.goal_id),
+                    "summary": change.summary
+                ]
+
+                if let difficulty = change.difficulty {
+                    result["difficulty"] = difficulty
+                }
+                if let days = change.days_of_week {
+                    result["days_of_week"] = days
+                }
+                if let name = change.name {
+                    result["name"] = name
+                }
+                if let endDate = change.end_date {
+                    result["end_date"] = endDate
+                }
+
+                return result
+            }
+            self.weeklyRecapSuggestions = suggestions
+            self.selectedWeeklyRecapSuggestions = Array(repeating: false, count: suggestions.count)
+
+            return (weeklySummary: decoded.weekly_summary, changesTitle: decoded.changes_title, changesSummary: decoded.changes_summary, suggestions: suggestions,
+                completed: decoded.stats.completed, total: decoded.stats.total)
+            
+        } catch {
+            print("weekly_recap ERROR:")
+            print(error)
+            return nil
+        }
+    }
+    
+    
+    func selectedRecapSuggestions() -> [[String: String]] {
+        weeklyRecapSuggestions.enumerated().compactMap { index, suggestion in
+            guard index < selectedWeeklyRecapSuggestions.count,
+                  selectedWeeklyRecapSuggestions[index] else {
+                return nil
+            }
+            return suggestion
+        }
+    }
+    
+    
+    // sends the user's accepted weekly recap suggestions back to backend
+    func receiveSuggestions(_ acceptedSuggestions: [[String: String]]) async -> Bool {
+        let allowedKeys: Set<String> = ["goal_id", "name", "end_date", "difficulty", "days_of_week"]
+
+        let cleanedChanges: [[String: Any]] = acceptedSuggestions.compactMap { suggestion in
+            guard let goalIdString = suggestion["goal_id"], let goalId = Int(goalIdString) else {
+                return nil
+            }
+
+            var cleaned: [String: Any] = ["goal_id": goalId]
+
+            for key in allowedKeys {
+                if key == "goal_id" {
+                    continue
+                }
+                if let value = suggestion[key] {
+                    cleaned[key] = value
+                }
+            }
+
+            return cleaned
+        }
+
+        let body: [String: Any] = [
+            "user_id": UserCreds.shared.getStringId() as Any,
+            "changes": cleanedChanges
+        ]
+
+        do {
+            let _: Empty = try await sendRequest("POST", body, "receive_suggestions")
+            weeklyRecapSuggestions = []
+            selectedWeeklyRecapSuggestions = []
+            return true
+        } catch {
+            print("receive_suggestions ERROR:")
+            print(error)
+            return false
+        }
+    }
+    
+    
     // Abstracted function to send a request and return some Decodable struct as response
     private func sendRequest<T: Decodable>(_ method: String, _ body: [String: Any], _ endpoint: String) async throws -> T{
         //print(body)
@@ -302,7 +429,18 @@ final class ApiCall {
         // Actual request and async stuff
         let (data, response) = try await URLSession.shared.data(for: request)
         
+        /*
         guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+         */
+        guard let response = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        if !(200...299).contains(response.statusCode) {
+            print("status code:", response.statusCode)
+            print("response body:", String(data: data, encoding: .utf8) ?? "no response body")
             throw URLError(.badServerResponse)
         }
         
