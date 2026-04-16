@@ -72,7 +72,7 @@ def check_auth(headers: dict) -> bool:
         logger.info("user: " + str(type(user_id)) + " auth: " + str(type(auth)))
         return False
     token = db.get_user_token(int(user_id))
-    logger.info("Auth OK")
+    # logger.info("Auth OK")
     return auth == token
 
 
@@ -109,6 +109,7 @@ def hello():
 
 @app.route("/login", methods=["POST"])
 def login():
+    logger.info("/login reached.")
     # Frontend should provide username and password
     data = request.get_json()
     username = data.get("username").strip()
@@ -148,6 +149,7 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    logger.info("/signup reached.")
     data = request.get_json()
     username = data.get("username").strip()
     password = data.get("password").strip()
@@ -213,6 +215,7 @@ def get_goals():
     # Return all goals that overlap the requested date range.
     # If no dates are provided, defaults to goals active in the past 7 days.
     # If user_id is provided, also runs the weekly schedule check.
+    logger.info("/goals reached.")
     data = request.get_json(silent=True) or {}
 
     # Check authentication
@@ -281,6 +284,8 @@ def get_goals():
 
 @app.route("/goals/create", methods=["POST"])
 def create_goal():
+    logger.info("/goals/create reached.")
+
     # Create a new goal. Required fields: name, measurable, end_date, user.
     # start_date defaults to today; active_date is set equal to start_date.
     data = request.get_json()
@@ -374,6 +379,8 @@ def create_goal():
 
 @app.route("/goals/update", methods=["POST"])
 def update_goal():
+    logger.info("/goals/update reached.")
+
     # Update an existing goal by id. All required fields must still be provided
     # (same validation as create). Only the fields passed in will be changed.
     data = request.get_json()
@@ -411,6 +418,8 @@ def update_goal():
 
 @app.route("/goals/snooze", methods=["POST"])
 def snooze_goal():
+    logger.info("/goals/snooze reached.")
+
     # Defer a goal by pushing its active_date forward by N weeks (snapped to Sunday).
     # The goal stays in the system but won't appear as active until that date.
     data = request.get_json()
@@ -429,6 +438,7 @@ def snooze_goal():
 
 @app.route("/goals/delete", methods=["POST"])
 def delete_goal():
+    logger.info("/goals/delete reached.")
     # Delete a goal by id. Associated tasks are removed automatically via cascade.
     data = request.get_json(silent=True) or {}
 
@@ -445,6 +455,7 @@ def delete_goal():
 
 @app.route("/tasks/complete", methods=["POST"])
 def complete_task():
+    logger.info("/tasks/complete reached.")
     # Mark a task as done or not-done in the user's current week_schedule.
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
@@ -469,6 +480,7 @@ def complete_task():
 
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
+    logger.info("/schedule/weekly reached.")
     # not currently in use,1 get goals() call check_new_week
     # Called by the frontend on app startup.
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
@@ -490,6 +502,7 @@ def weekly_schedule():
 
 @app.route("/daily_goal_digest", methods=["POST"])
 def daily_goal_digest():
+    logger.info("/daily_goal_digest reached.")
     # Called on startup after /schedule/weekly.
     # Returns today's tasks for the user, each paired with its goal name.
     # Response: { day: "monday", tasks: [{ task_id, task, goal_name, impetus, ... }] }
@@ -534,6 +547,7 @@ Suggestions JSON SCHEMA: Generate a JSON object with exactly two entries: "sugge
 
 @app.route("/receive_suggestions", methods=["POST"])
 def receive_suggestions():
+    logger.info("/receive_suggestions reached.")
     ALLOWED_FIELDS = {"name", "end_date", "difficulty", "days_of_week"}
     VALID_DIFFICULTIES = {"easy", "average", "hard"}
 
@@ -580,6 +594,7 @@ def receive_suggestions():
 
 @app.route("/weekly_recap", methods=["GET"])
 def get_weekly_recap_suggestions():
+    logger.info("/weekly_recap reached.")
     if not request.headers.get("User-ID") and not request.headers.get("User-Id"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
@@ -667,6 +682,7 @@ def get_weekly_recap_suggestions():
 
 @app.route("/goal_guidance", methods=["POST"])
 def get_goal_guidance():
+    logger.info("/goal_guidance reached.")
     user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
     goal_id = request.headers.get("Goal-ID") or request.headers.get("Goal-Id")
@@ -783,6 +799,7 @@ def get_goal_guidance():
 
 @app.route("/extract_goal", methods=["POST"])
 def extract_goal():
+    logger.info("/extract_goal reached.")
     user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
@@ -838,6 +855,7 @@ def extract_goal():
 
 @app.route("/stt/eod_summary", methods=["POST"])
 def eod_summary():
+    logger.info("/stt/eod_summary reached.")
     """Given a transcription from a user's STT, return a LLM-generated summary"""
     # Grab metadata from user
     logger.info("🚀 Reached the EOD Summary endpoint")
@@ -910,6 +928,7 @@ def eod_summary():
 # Save convo to chromadb
 @app.route("/stt/save_convo", methods=["POST"])
 def save_convo():
+    logger.info("/stt/save_convo reached.")
     data = request.get_json()
     userid = data.get("user_id")
     transcription = data.get("transcription")
