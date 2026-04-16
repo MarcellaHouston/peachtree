@@ -82,7 +82,9 @@ final class ApiCall {
         struct Res: Codable {
             let goals: [GoalSchema]
         }
-        let body: [String: Any] = [:]
+        let body: [String: Any] = [
+            "user_id": UserCreds.shared.getStringId() as Any
+        ]
         do {
             let res: Res = try await sendRequest("POST", body, "goals")
             self.goals = res.goals.map() { x in x.goal() }
