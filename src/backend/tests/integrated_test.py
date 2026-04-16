@@ -61,13 +61,19 @@ class _FakeLLMClient:
         pass
 
     def query(self, *args, **kwargs):
-        if self.use_case in (
-            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
-            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
-        ):
+        if self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS:
+            return {
+                **self._FAKE_SUGGESTIONS,
+                "weekly_summary": "You completed some tasks and have room to improve consistency.",
+                "changes_title": "Increase Weekly Consistency",
+            }, True, 0
+        if self.use_case == self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
             return self._FAKE_SUGGESTIONS, True, 0
         if self.use_case == self.UseCase.EXTRACT_SEMANTICS:
-            return "user wants to run more often", True, 0
+            return {
+                "semantic": "user wants to run more often",
+                "summary": "You want to run more often.",
+            }, True, 0
         if self.use_case == self.UseCase.EXTRACT_GOAL_CONTENT:
             return {"name": "Run a marathon", "end_date": "2027-06-01", "days_of_week": "monday,wednesday,friday"}, True, 0
         return [], True, 0
@@ -107,19 +113,27 @@ class IntegrationTestCase(unittest.TestCase):
             headers={"Authorization": "test-token"},
         )
 
-    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3, difficulty_score=50):
+    def _insert_task(
+        self,
+        goal_id,
+        weekly_frequency=2,
+        weight=1,
+        impetus=3,
+        difficulty_score=50,
+        days_of_week=None,
+    ):
         self.real_db._run_param(
             """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus, difficulty_score)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               days_of_week, start_date, end_date, impetus, difficulty_score)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (goal_id, "Do the thing", weekly_frequency, weight,
-             date.today().isoformat(), "2027-12-31", impetus, difficulty_score)
+             days_of_week, date.today().isoformat(), "2027-12-31", impetus, difficulty_score)
         )
         self.real_db._commit()
 
     def create_goal(self, **overrides):
         """
-        POST a valid goal to /goals/create and assert it was accepted (204).
+        POST a valid goal to /goals/create and assert it was created (201).
         Keyword args are merged into the payload so individual tests can
         customise specific fields without repeating the full payload.
         """
@@ -133,7 +147,8 @@ class IntegrationTestCase(unittest.TestCase):
         }
         payload = {"goal": goal, "user_id": goal["user_id"]}
         resp = self.post_json("/goals/create", payload)
-        self.assertEqual(resp.status_code, 204, resp.get_data(as_text=True))
+        self.assertEqual(resp.status_code, 201, resp.get_data(as_text=True))
+        self.assertIn("goal_id", resp.get_json())
         return goal
 
 
@@ -871,6 +886,18 @@ class TestGoalCompletion(IntegrationTestCase):
         self.assertEqual(c["completed_tasks"], 0)
         self.assertEqual(c["percent_completed"], 0)
 
+    def test_weekly_assign_respects_task_days_over_goal_days(self):
+        self._insert_user(availability={"tuesday": 5, "thursday": 5})
+        self.create_goal(days_of_week="tuesday,thursday", end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=1, days_of_week="thursday")
+
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        schedule = self._schedule()
+
+        self.assertEqual(schedule["tuesday"], [])
+        self.assertEqual(len(schedule["thursday"]), 1)
+
     def test_completed_tasks_increments_on_complete(self):
         # Schedule one task on today via /schedule/weekly, mark it complete,
         # and verify the goal counters reflect 1/1 = 100%.
@@ -1164,7 +1191,7 @@ class TestReceiveSuggestions(IntegrationTestCase):
 
 
 # ---------------------------------------------------------------------------
-# GET /weekly_recap
+# POST /weekly_recap
 # ---------------------------------------------------------------------------
 
 
@@ -1185,7 +1212,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.real_db._commit()
 
     def _get_recap(self, user_id="alice"):
-        return self.client.get(
+        return self.client.post(
             "/weekly_recap",
             data=json.dumps({"user_id": user_id}),
             content_type="application/json",
@@ -1211,7 +1238,10 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
+        self.assertIn("weekly_summary", data)
+        self.assertIn("changes_title", data)
         self.assertIn("changes_summary", data)
+        self.assertEqual(data["stats"], {"completed": 1, "total": 2})
 
     def test_no_goals_returns_400(self):
         self._insert_user()
@@ -1219,7 +1249,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_missing_user_id_header(self):
-        resp = self.client.get(
+        resp = self.client.post(
             "/weekly_recap",
             headers={"Authorization": "test-token"},
         )
@@ -1301,6 +1331,7 @@ class TestGoalGuidance(IntegrationTestCase):
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
         self.assertIn("changes_summary", data)
+        self.assertEqual(data["user_summary"], "You want to run more often.")
 
     def test_missing_goal_id_header(self):
         resp = self.client.post(

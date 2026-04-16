@@ -52,12 +52,19 @@ class _LLM:
         if rag:
             self.rag_retrieval(query=rag_query, userid=user_id)
 
-        # Construct message using user-input (content) along with past context if available
+        # Construct message using user-input, context, and retry feedback.
+        # Validation errors are appended to previous_conversation by LLMClient;
+        # include them here so retry attempts can actually correct themselves.
+        message_parts = []
         if self.context:
-            past_context = "\n".join(self.context)
-            full_message = f"Context: {past_context}\n\nQuery: {content}"
-        else:
-            full_message = content
+            message_parts.append("Context:\n" + "\n".join(self.context))
+        if self.previous_conversation:
+            message_parts.append(
+                "Previous invalid attempt and validation feedback:\n"
+                + "\n".join(self.previous_conversation)
+            )
+        message_parts.append("Query:\n" + content)
+        full_message = "\n\n".join(message_parts)
 
         # Format message to be accepted by AWS Bedrock's converse method
         converse_message = [{"role": "user", "content": [{"text": full_message}]}]
@@ -124,7 +131,7 @@ class LLMClient:
     def __init__(
         self,
         use_case: UseCase,
-        max_tokens=4096,
+        max_tokens=8192,
         user_id: str = "Reach staff",
     ):
         self.files = {
@@ -164,7 +171,7 @@ class LLMClient:
                     "start_date",
                     "end_date",
                     "impetus",
-                    "difficulty_score"
+                    "difficulty_score",
                 ]
             case self.UseCase.GENERATE_TALKING_POINTS:
                 file_path = prompts / self.files[self.UseCase.GENERATE_TALKING_POINTS]
@@ -184,7 +191,12 @@ class LLMClient:
                     prompts / self.files[self.UseCase.GENERATE_WEEKLY_SUGGESTIONS]
                 )
                 self.rag = False
-                self.schema = ["changes_summary", "suggested_changes"]
+                self.schema = [
+                    "changes_summary",
+                    "suggested_changes",
+                    "weekly_summary",
+                    "changes_title",
+                ]
             case self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS]
@@ -194,7 +206,7 @@ class LLMClient:
             case self.UseCase.EXTRACT_SEMANTICS:
                 file_path = prompts / self.files[self.UseCase.EXTRACT_SEMANTICS]
                 self.rag = False
-                self.schema = []
+                self.schema = ["semantic", "summary"]
             case self.UseCase.EXTRACT_GOAL_CONTENT:
                 file_path = prompts / self.files[self.UseCase.EXTRACT_GOAL_CONTENT]
                 self.rag = False
@@ -246,8 +258,6 @@ class LLMClient:
             if self.use_case in [
                 self.UseCase.GENERATE_TASKS,
                 self.UseCase.GENERATE_TALKING_POINTS,
-                self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
-                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
             ]:
                 try:
                     json_response = loads(response)
@@ -263,7 +273,10 @@ class LLMClient:
                     continue
 
             if self.use_case in [
+                self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
+                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
                 self.UseCase.EXTRACT_GOAL_CONTENT,
+                self.UseCase.EXTRACT_SEMANTICS,
             ]:
                 try:
                     json_response = loads(response)
@@ -274,7 +287,7 @@ class LLMClient:
                     )
                     valid = False
                     self.model.previous_conversation.append(
-                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object with only these allowed keys: name, end_date, days_of_week."
+                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object and adheres to the schema."
                     )
                     continue
 
@@ -353,7 +366,7 @@ class LLMClient:
                                 + goal_start_date
                                 + ", end_date must be on or before the goal's end date of "
                                 + goal_end_date
-                                + ", and start_date must be before end_date."
+                                + ", and start_date must be before end_date. Do not set end_date equal to start_date; choose an end_date at least one day after start_date."
                             )
 
                         # validate impetus 1-5
@@ -466,18 +479,71 @@ class LLMClient:
                         )
                         continue
 
+                    if not isinstance(json_response["suggested_changes"], list):
+                        print(
+                            "Invalid suggested_changes value: suggested_changes must be a list."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid suggested_changes value. Please provide suggested_changes as a list."
+                        )
+                        continue
+                    if not isinstance(json_response["changes_summary"], str):
+                        print(
+                            "Invalid changes_summary value: changes_summary must be a string."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_summary value. Please provide changes_summary as a string."
+                        )
+                        continue
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not isinstance(json_response["weekly_summary"], str)
+                    ):
+                        print(
+                            "Invalid weekly_summary value: weekly_summary must be a string."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid weekly_summary value. Please provide weekly_summary as a string."
+                        )
+                        continue
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not isinstance(json_response["changes_title"], str)
+                    ):
+                        print(
+                            "Invalid changes_title value: changes_title must be a string."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_title value. Please provide changes_title as a string."
+                        )
+                        continue
+
                     allowed_changes = ["name", "end_date", "difficulty", "days_of_week"]
+                    allowed_change_keys = allowed_changes + ["goal_id", "summary"]
 
                     # check changes in allowed_changes
                     for change in json_response["suggested_changes"]:
+                        if not isinstance(change, dict):
+                            print(
+                                "Invalid suggested change value: each suggested change must be an object."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid suggested change. Please provide each suggested change as a JSON object."
+                            )
+                            continue
                         for key in change:
-                            if key not in allowed_changes:
+                            if key not in allowed_change_keys:
                                 print(
-                                    f"Invalid suggested change key: {key}. Must be one of the following: {', '.join(allowed_changes)}."
+                                    f"Invalid suggested change key: {key}. Must be one of the following: {', '.join(allowed_change_keys)}."
                                 )
                                 valid = False
                                 self.model.previous_conversation.append(
-                                    "Error: The previous response had an invalid suggested change key. Please provide a new response with suggested changes that are only from the following list: name, end_date, difficulty, days_of_week."
+                                    "Error: The previous response had an invalid suggested change key. Please provide a new response with suggested changes that only use goal_id, summary, name, end_date, difficulty, and days_of_week."
                                 )
                         change_set = set(change)
 
@@ -546,6 +612,29 @@ class LLMClient:
                                 )
 
                     # check summary not empty
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not json_response["weekly_summary"].strip()
+                    ):
+                        print(
+                            "Invalid weekly_summary value: weekly_summary cannot be empty."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid weekly_summary value. Please provide a new response with a non-empty weekly_summary."
+                        )
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not json_response["changes_title"].strip()
+                    ):
+                        print(
+                            "Invalid changes_title value: changes_title cannot be empty."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_title value. Please provide a new response with a non-empty changes_title."
+                        )
+
                     if not json_response["changes_summary"].strip():
                         print(
                             "Invalid changes_summary value: changes_summary cannot be empty."
@@ -556,7 +645,60 @@ class LLMClient:
                         )
 
                 case self.UseCase.EXTRACT_SEMANTICS:
-                    output = response
+                    output = json_response
+
+                    missing_keys = []
+                    for key in self.schema:
+                        if key not in json_response:
+                            print(f"Response missing key '{key}'.")
+                            missing_keys.append(key)
+                            valid = False
+
+                    if missing_keys:
+                        self.model.previous_conversation.append(
+                            "Error: The previous response was invalid because it was missing the following keys: "
+                            + ", ".join(missing_keys)
+                            + ". Please provide a new response that includes these keys."
+                        )
+                        continue
+
+                    unexpected_keys = set(json_response.keys()) - set(self.schema)
+                    if unexpected_keys:
+                        print(
+                            f"Unexpected keys: {unexpected_keys}. Only allowed keys are: {set(self.schema)}"
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had unexpected keys. Please provide a new response with only these allowed keys: semantic, summary."
+                        )
+                        continue
+
+                    if not isinstance(json_response["semantic"], str):
+                        print("Invalid semantic value: semantic must be a string.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid semantic value. Please provide semantic as a string."
+                        )
+                        continue
+                    if not isinstance(json_response["summary"], str):
+                        print("Invalid summary value: summary must be a string.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid summary value. Please provide summary as a string."
+                        )
+                        continue
+                    if not json_response["semantic"].strip():
+                        print("Invalid semantic value: semantic cannot be empty.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid semantic value. Please provide a non-empty semantic string."
+                        )
+                    if not json_response["summary"].strip():
+                        print("Invalid summary value: summary cannot be empty.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid summary value. Please provide a non-empty summary string."
+                        )
 
                 case self.UseCase.EXTRACT_GOAL_CONTENT:
                     output = json_response

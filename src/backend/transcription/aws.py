@@ -41,21 +41,21 @@ def delete_file(filename: str) -> None:
     """Delete designated files from our s3 instance"""
     s3_client = boto3.client("s3")
     s3_client.delete_object(Bucket=BUCKET_NAME, Key=filename)
-    print(f"Deleted file {filename} from {BUCKET_NAME}")
+    # print(f"Deleted file {filename} from {BUCKET_NAME}")
 
 
 def delete_job(job_name: str) -> None:
     """Delete designated transcription job from our account"""
     transcribe = boto3.client("transcribe")
     transcribe.delete_transcription_job(TranscriptionJobName=job_name)
-    print(f"Deleted job: {job_name} from {BUCKET_NAME}")
+    # print(f"Deleted job: {job_name} from {BUCKET_NAME}")
 
 
 def cleanup(s3_filename: str, job_name: str) -> None:
     """Clean up after job by deleting s3 file and transcription job"""
     delete_file(s3_filename)
     delete_job(job_name)
-    print(f"Deleted {s3_filename} from s3 and {job_name} from AWS Transcribe")
+    # print(f"Deleted {s3_filename} from s3 and {job_name} from AWS Transcribe")
 
 
 def transcription_service(filename: str, clean_up=False) -> str:
@@ -83,9 +83,10 @@ def transcription_service(filename: str, clean_up=False) -> str:
     while True:
         status = transcribe.get_transcription_job(TranscriptionJobName=job_name)
         job_status = status["TranscriptionJob"]["TranscriptionJobStatus"]
-        print("Status:", job_status)
+        # print("Status:", job_status)
 
         if job_status in ["COMPLETED", "FAILED"]:
+            print("TRANSCRIPTION " + job_status)
             break
         time.sleep(2)
 

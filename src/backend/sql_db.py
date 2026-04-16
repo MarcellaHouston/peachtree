@@ -1,7 +1,10 @@
 import sqlite3 as sql
 import json
 import os
+import logging
 from datetime import date, timedelta
+
+logger = logging.getLogger(__name__)
 
 _ALL_DAYS = [
     "monday",
@@ -12,6 +15,25 @@ _ALL_DAYS = [
     "saturday",
     "sunday",
 ]
+
+
+def _parse_days(days) -> list:
+    if not days:
+        return []
+    if isinstance(days, str):
+        try:
+            parsed = json.loads(days)
+        except json.JSONDecodeError:
+            parsed = days.split(",")
+    else:
+        parsed = days
+    if isinstance(parsed, str):
+        parsed = parsed.split(",")
+    return [
+        day.strip().lower()
+        for day in parsed
+        if isinstance(day, str) and day.strip().lower() in _ALL_DAYS
+    ]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,7 +67,7 @@ class Database:
                 if "PRIMARY KEY" not in v and not k.upper().startswith("FOREIGN KEY")
             ]
         )
-        print(cols)
+        # print(cols)
         self._run_param(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", args)
         self._commit()
         return self.cursor.lastrowid
@@ -180,17 +202,42 @@ class Database:
 
         # if a schedule already exists for this week, subtract the number from total
         today = date.today().isoformat()
+        logger.info(
+            "📅 Assigning weekly tasks for user=%s week_start=%s",
+            user_id,
+            this_sunday,
+        )
 
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
         row = self._run_param(
             "SELECT week_availability FROM users WHERE username = ?", (user_id,)
         ).fetchone()
-        if not row or not row[0]:
+        if not row:
+            logger.warning(
+                "📅 Weekly task assignment skipped: no user row for username=%s",
+                user_id,
+            )
+            return {}
+        if not row[0]:
+            logger.warning(
+                "📅 Weekly task assignment skipped for user=%s: week_availability is empty",
+                user_id,
+            )
             return {}
         avail = json.loads(row[0])
         avail_days = [k for k in avail if k in _ALL_DAYS]  # ordered available days
         if not avail_days:
+            logger.warning(
+                "📅 Weekly task assignment skipped for user=%s: no valid availability days in %s",
+                user_id,
+                avail,
+            )
             return {}
+        logger.info(
+            "📅 Weekly availability for user=%s: %s",
+            user_id,
+            ",".join(avail_days),
+        )
 
         # If a schedule already exists for THIS same week (e.g. create_goal
         # triggered a mid-week rebuild), tally how many instances each goal
@@ -230,7 +277,7 @@ class Database:
         # sorted highest impetus first so urgent tasks get the best day slots
         tasks = self._run_param(
             """
-            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, g.days_of_week
+            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, t.days_of_week, g.days_of_week
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
@@ -238,6 +285,12 @@ class Database:
         """,
             (user_id, today, today),
         ).fetchall()
+        logger.info(
+            "📅 Found %d active task(s) for user=%s on %s",
+            len(tasks),
+            user_id,
+            today,
+        )
 
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
@@ -245,19 +298,34 @@ class Database:
         # cumulative all_tasks counter once at the end.
         goal_instance_counts: dict = {}
 
-        for task_id, freq, _, goal_id, goal_days_of_week in tasks:
-            # Restrict to the intersection of user availability and goal's allowed days
-            if goal_days_of_week:
-                goal_days = set(goal_days_of_week.split(","))
-                eligible_days = [d for d in avail_days if d in goal_days]
+        for task_id, freq, _, goal_id, task_days_of_week, goal_days_of_week in tasks:
+            # Prefer the generated task's own days. Fall back to the goal's allowed
+            # days for older rows that do not have task-level days yet.
+            task_days = _parse_days(task_days_of_week)
+            goal_days = _parse_days(goal_days_of_week)
+            allowed_days = task_days or goal_days
+            if allowed_days:
+                eligible_days = [d for d in avail_days if d in allowed_days]
             else:
                 eligible_days = avail_days
             if not eligible_days:
+                logger.info(
+                    "📅 Skipping task_id=%s for user=%s: no overlap between availability=%s and allowed_days=%s",
+                    task_id,
+                    user_id,
+                    avail_days,
+                    allowed_days,
+                )
                 continue
             n = len(eligible_days)
-            freq = min(freq, n)  # can't schedule more times than eligible days
-            step = max(1, n // freq)  # space out slots evenly across eligible days
+            step = max(1, n // min(freq, n))  # space out slots evenly across eligible days
             chosen = [eligible_days[(i * step) % n] for i in range(freq)]
+            logger.info(
+                "📅 Scheduling task_id=%s for user=%s on %s",
+                task_id,
+                user_id,
+                ",".join(chosen),
+            )
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
             goal_instance_counts[goal_id] = goal_instance_counts.get(goal_id, 0) + len(
@@ -279,6 +347,12 @@ class Database:
             (json.dumps(schedule), user_id),
         )
         self._commit()
+        scheduled_count = sum(len(schedule[day]) for day in _ALL_DAYS)
+        logger.info(
+            "📅 Weekly task assignment saved for user=%s: %d scheduled task instance(s)",
+            user_id,
+            scheduled_count,
+        )
 
         # Apply per-goal all_tasks deltas. For a same-week rebuild, prev_all_counts
         # holds what was already counted, so the delta is the difference. For a new
@@ -444,11 +518,12 @@ class Database:
         user_data["User-ID"] = fetch_data[0]
         user_data["password"] = fetch_data[1]
         return user_data
-    
+
     def get_glicko_task_data(self, taskid: int) -> dict:
         # Get data needed for Glicko algorithm from a task and its overarching goal
         fetch_data = self._run_param(
-            "SELECT impetus, difficulty_score, goal_id FROM tasks WHERE task_id = ?", (taskid,)
+            "SELECT impetus, difficulty_score, goal_id FROM tasks WHERE task_id = ?",
+            (taskid,),
         ).fetchone()
         task_data = {"impetus": 0, "difficulty_score": 0, "goal_difficulty": ""}
         if fetch_data is None:
@@ -456,21 +531,24 @@ class Database:
         task_data["impetus"] = fetch_data[0]
         task_data["difficulty_score"] = fetch_data[1]
         goal_id = fetch_data[2]
-        
+
         # Get difficulty of the overarching goal for this task
-        goal_diff = self._run_param("SELECT difficulty FROM goals WHERE id = ?", (goal_id,)
+        goal_diff = self._run_param(
+            "SELECT difficulty FROM goals WHERE id = ?", (goal_id,)
         ).fetchone()
         if goal_diff:
             task_data["goal_difficulty"] = goal_diff[0]
         return task_data
-    
-    def update_user_glicko(self, user_id: int, rating: int, RD: float, volatility: float):
+
+    def update_user_glicko(
+        self, user_id: int, rating: int, RD: float, volatility: float
+    ):
         self._run_param(
             "UPDATE users SET rating = ?, deviation = ?, volatility = ? WHERE id = ?",
             (rating, RD, volatility, user_id),
         )
         self._commit()
-    
+
     def get_glicko_rating(self, user_id: str) -> int:
         fetch_data = self._run_param(
             "SELECT rating FROM users WHERE username = ?", (user_id,)
@@ -497,11 +575,11 @@ class Database:
         return cursor.fetchall()
 
     def _run(self, s: str) -> sql.Cursor:
-        print(s)
+        # print(s)
         return self.cursor.execute(s)
 
     def _run_param(self, s: str, params: list) -> sql.Cursor:
-        print(s, params)
+        # print(s, params)
         return self.cursor.execute(s, params)
 
     def _commit(self) -> None:

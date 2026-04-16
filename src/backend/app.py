@@ -72,7 +72,7 @@ def check_auth(headers: dict) -> bool:
         logger.info("user: " + str(type(user_id)) + " auth: " + str(type(auth)))
         return False
     token = db.get_user_token(int(user_id))
-    logger.info("Auth OK")
+    # logger.info("Auth OK")
     return auth == token
 
 
@@ -99,6 +99,44 @@ def run_glicko():
         print(f"FAILURE: Daily Glicko Update at {start_time}\nREASON: {e}")
 
 
+@app.cli.command("assign-weekly-tasks")
+def assign_weekly_tasks():
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    this_sunday = db.this_sunday()
+    print(f"STARTING: Weekly Task Assignment at {start_time}\n")
+
+    users = db.select("users", "all")
+    failures = []
+    for user in users:
+        username = user[1]
+        try:
+            schedule = db.assign_weekly_tasks(username, this_sunday)
+            task_count = sum(
+                len(schedule.get(day, []))
+                for day in [
+                    "sunday",
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                ]
+            )
+            print(f"ASSIGNED: {username} ({task_count} tasks)")
+            print(json.dumps(schedule, indent=2))
+        except Exception as e:
+            failures.append((username, e))
+            print(f"FAILED: {username}\nREASON: {e}")
+
+    end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if failures:
+        print(f"FAILURE: Weekly Task Assignment at {end_time}")
+        print(f"FAILED USERS: {len(failures)} of {len(users)}")
+    else:
+        print(f"SUCCESS: Weekly Task Assignment at {end_time}")
+
+
 @app.route("/")
 def hello():
     return "Hello"
@@ -109,6 +147,7 @@ def hello():
 
 @app.route("/login", methods=["POST"])
 def login():
+    logger.info("🔐 /login reached.")
     # Frontend should provide username and password
     data = request.get_json()
     username = data.get("username").strip()
@@ -148,6 +187,7 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    logger.info("📝 /signup reached.")
     data = request.get_json()
     username = data.get("username").strip()
     password = data.get("password").strip()
@@ -181,7 +221,7 @@ def signup():
                 350.0,
                 0.06,
                 "{}",
-                "{}",
+                '{"monday": 5, "tuesday": 5, "wednesday": 5, "thursday": 5, "friday": 5, "saturday": 5, "sunday": 5}',
             ],
         )
         # Get id from new user (it's auto-generated when user is created)
@@ -213,6 +253,7 @@ def get_goals():
     # Return all goals that overlap the requested date range.
     # If no dates are provided, defaults to goals active in the past 7 days.
     # If user_id is provided, also runs the weekly schedule check.
+    logger.info("🎯 /goals reached.")
     data = request.get_json(silent=True) or {}
 
     # Check authentication
@@ -281,6 +322,8 @@ def get_goals():
 
 @app.route("/goals/create", methods=["POST"])
 def create_goal():
+    logger.info("🌱 /goals/create reached.")
+
     # Create a new goal. Required fields: name, measurable, end_date, user.
     # start_date defaults to today; active_date is set equal to start_date.
     data = request.get_json()
@@ -292,6 +335,11 @@ def create_goal():
         return jsonify({"error": "User isn't authenticated"}), 401
 
     goal = data["goal"]
+    logger.info(
+        "🌱 Create goal received: %s | days_of_week=%s",
+        goal.get("name"),
+        goal.get("days_of_week"),
+    )
 
     errors = validate_goal(goal)
     if errors:
@@ -342,8 +390,7 @@ def create_goal():
     if valid:
         logger.info("is valid!")
         for task in tasks:
-            logger.info(task["task"])
-            db.insert(
+            task_id = db.insert(
                 "tasks",
                 [
                     goal_id,
@@ -357,6 +404,13 @@ def create_goal():
                     task["difficulty_score"],
                 ],
             )
+            logger.info(
+                "🧩 Generated task_id=%s for goal '%s': %s | days_of_week=%s",
+                task_id,
+                goal["name"],
+                task["task"],
+                task.get("days_of_week"),
+            )
         if tasks:
             schedule = db.assign_weekly_tasks(
                 user_id=goal["user_id"], this_sunday=db.this_sunday()
@@ -369,11 +423,13 @@ def create_goal():
             jsonify({"error": "LLM failed to generate tasks", "retries": retries}),
             500,
         )
-    return "", 204
+    return jsonify({"goal_id": goal_id}), 201
 
 
 @app.route("/goals/update", methods=["POST"])
 def update_goal():
+    logger.info("✏️ /goals/update reached.")
+
     # Update an existing goal by id. All required fields must still be provided
     # (same validation as create). Only the fields passed in will be changed.
     data = request.get_json()
@@ -411,6 +467,8 @@ def update_goal():
 
 @app.route("/goals/snooze", methods=["POST"])
 def snooze_goal():
+    logger.info("😴 /goals/snooze reached.")
+
     # Defer a goal by pushing its active_date forward by N weeks (snapped to Sunday).
     # The goal stays in the system but won't appear as active until that date.
     data = request.get_json()
@@ -429,6 +487,7 @@ def snooze_goal():
 
 @app.route("/goals/delete", methods=["POST"])
 def delete_goal():
+    logger.info("🗑️ /goals/delete reached.")
     # Delete a goal by id. Associated tasks are removed automatically via cascade.
     data = request.get_json(silent=True) or {}
 
@@ -445,6 +504,7 @@ def delete_goal():
 
 @app.route("/tasks/complete", methods=["POST"])
 def complete_task():
+    logger.info("✅ /tasks/complete reached.")
     # Mark a task as done or not-done in the user's current week_schedule.
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
@@ -469,6 +529,7 @@ def complete_task():
 
 @app.route("/schedule/weekly", methods=["POST"])
 def weekly_schedule():
+    logger.info("📅 /schedule/weekly reached.")
     # not currently in use,1 get goals() call check_new_week
     # Called by the frontend on app startup.
     # Checks if the user has entered a new week (new Sunday). If so, reassigns
@@ -490,6 +551,7 @@ def weekly_schedule():
 
 @app.route("/daily_goal_digest", methods=["POST"])
 def daily_goal_digest():
+    logger.info("☀️  /daily_goal_digest reached.")
     # Called on startup after /schedule/weekly.
     # Returns today's tasks for the user, each paired with its goal name.
     # Response: { day: "monday", tasks: [{ task_id, task, goal_name, impetus, ... }] }
@@ -520,7 +582,7 @@ def daily_goal_digest():
 # ---------------------------------------------------------------------------
 
 """
-Suggestions JSON SCHEMA: Generate a JSON object with exactly two entries: "suggested_changes" and "changes_summary". "suggested_changes" should map to a list of proposed changes, while "changes_summary" summarizes the intent of the proposed changes.
+Suggestions JSON SCHEMA: Generate a JSON object with exactly four entries: "suggested_changes", "weekly_summary", "changes_title", and "changes_summary". "suggested_changes" should map to a list of proposed changes, while "weekly_summary" comments on the week, "changes_title" titles the proposed changes, and "changes_summary" only describes the proposed changes with brief justification.
 "suggested_changes" (list) A list of proposed changes, with each object containing "goal_id", any number of ["name","end_date","difficulty","days_of_week"], and "summary". This should always be at least 2 changes, but no more than 5.
 - "goal_id" (int) The goal you are changing, gotten from the goals provided in the context.
 - "name" (string, optional) Included if you wish to change the name to reflect changes. This is the title for the goal.
@@ -528,12 +590,15 @@ Suggestions JSON SCHEMA: Generate a JSON object with exactly two entries: "sugge
 - "difficulty" (string, optional) Included if you wish to change the difficulty of a task. Unless in non-standard cases with big changes in difficulty, usually this should be left unchanged. Must be one of "easy", "average", "hard".
 - "days_of_week" (string, optional) Included if you wish to modify which days the goal may be (but not necessarily end up being) performed. Comma-delimited list of days, no spaces, and lowercase (e.g., "monday,wednesday,friday").
 - "summary" (string) A summary of this proposed change. This will be what the user sees and uses to accept or decline the change. Should be "git commit or changelog -esque" grammar with infinitive verbs, e.g. "Add Sunday as a day to go to the gym, and push end date back by a week". This should be within approximately 20 words. This MUST reflect the objective change to the goal, not the change to task implied nor the intent behind the change. This will be conveyed through "changes_summary".
-"changes_summary" (string) A conclusion that summarizes all the changes proposed and the intent and theme behind suggesting so; this must fit within approximately 40 words. You should speak in second person, i.e. refer to the user as "you". For example, this could be "You might want to spend more days at the gym to improve your gains".
+"weekly_summary" (string) Commentary on the user's weekly proceedings: what went well, what did not, and the overall pattern. This should be within approximately 30 words. Speak in second person.
+"changes_title" (string) A short title for the proposed changes. Use title case or concise action phrasing, e.g. "Increase Push Up Frequency" for a summary like "Increase push up frequency by adding more days and extend the deadline to improve completion chances."
+"changes_summary" (string) A summary that only describes the proposed changes and gives brief justification, e.g. "Add Tuesday and Thursday rides to improve weekly consistency." This should be within approximately 30 words. Speak in second person.
 """
 
 
 @app.route("/receive_suggestions", methods=["POST"])
 def receive_suggestions():
+    logger.info("📥 /receive_suggestions reached.")
     ALLOWED_FIELDS = {"name", "end_date", "difficulty", "days_of_week"}
     VALID_DIFFICULTIES = {"easy", "average", "hard"}
 
@@ -554,8 +619,10 @@ def receive_suggestions():
     accepted_changes = data.get("changes")
     if not isinstance(accepted_changes, list) or not accepted_changes:
         return jsonify({"error": "Expected a non-empty list of changes"}), 400
+    logger.info("📥 Received suggestions for user=%s: %s", user_id, accepted_changes)
 
     for change in accepted_changes:
+        change.pop("summary", None)
         goal_id = change.get("goal_id")
         if not goal_id:
             return jsonify({"error": "Each change must include goal_id"}), 400
@@ -578,8 +645,9 @@ def receive_suggestions():
     return "", 204
 
 
-@app.route("/weekly_recap", methods=["GET"])
+@app.route("/weekly_recap", methods=["POST"])
 def get_weekly_recap_suggestions():
+    logger.info("📊 /weekly_recap reached.")
     if not request.headers.get("User-ID") and not request.headers.get("User-Id"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
@@ -587,6 +655,9 @@ def get_weekly_recap_suggestions():
         return jsonify({"error": "User isn't authenticated"}), 401
 
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Expected JSON object body"}), 400
+
     user_id = data.get("user_id")
     if not user_id:
         return jsonify({"error": "Missing user_id in request"}), 400
@@ -662,11 +733,13 @@ def get_weekly_recap_suggestions():
     if not valid:
         return jsonify({"error": "Failed to generate suggestions"}), 500
 
+    suggestions["stats"] = {"completed": completed_tasks, "total": total_tasks}
     return jsonify(suggestions)
 
 
 @app.route("/goal_guidance", methods=["POST"])
 def get_goal_guidance():
+    logger.info("🧭 /goal_guidance reached.")
     user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
     goal_id = request.headers.get("Goal-ID") or request.headers.get("Goal-Id")
@@ -717,11 +790,13 @@ def get_goal_guidance():
         f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
     ]
     extract_model.context("User's Daily Tasks:\n" + " ".join(daily_tasks))
-    semantics, semantics_valid, _ = extract_model.query(content=transcription)
-    logger.info("goal_guidance extract_semantics LLM output: %s", semantics)
+    semantics_payload, semantics_valid, _ = extract_model.query(content=transcription)
+    logger.info("goal_guidance extract_semantics LLM output: %s", semantics_payload)
 
     if not semantics_valid:
         return jsonify({"error": "Failed to extract semantics"}), 500
+    semantics = semantics_payload["semantic"]
+    user_summary = semantics_payload["summary"]
 
     # Step 2: Fetch goal info and tasks for context
     goal_id = int(goal_id)
@@ -778,11 +853,13 @@ def get_goal_guidance():
     if not valid:
         return jsonify({"error": "Failed to generate guidance suggestions"}), 500
 
+    suggestions["user_summary"] = user_summary
     return jsonify(suggestions)
 
 
 @app.route("/extract_goal", methods=["POST"])
 def extract_goal():
+    logger.info("🔎 /extract_goal reached.")
     user_id = request.headers.get("User-ID") or request.headers.get("User-Id")
     username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
@@ -838,9 +915,10 @@ def extract_goal():
 
 @app.route("/stt/eod_summary", methods=["POST"])
 def eod_summary():
+    logger.info("🌙 /stt/eod_summary reached.")
     """Given a transcription from a user's STT, return a LLM-generated summary"""
     # Grab metadata from user
-    logger.info("🚀 Reached the EOD Summary endpoint")
+    logger.info("🌙 Reached the EOD Summary endpoint")
     username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
 
@@ -910,6 +988,7 @@ def eod_summary():
 # Save convo to chromadb
 @app.route("/stt/save_convo", methods=["POST"])
 def save_convo():
+    logger.info("💬 /stt/save_convo reached.")
     data = request.get_json()
     userid = data.get("user_id")
     transcription = data.get("transcription")
