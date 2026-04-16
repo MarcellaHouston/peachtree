@@ -64,13 +64,15 @@ def validate_goal(goal):
 # Helper function that should be called in every endpoint
 def check_auth(headers: dict) -> bool:
     # Makes sure user's authentication key matches their stored token
-    user_id = headers.get("User-ID")
+    user_id = headers.get("User-ID") or headers.get("User-Id")
     auth = headers.get("Authorization")
     if not CHECK:
         return True
     if not user_id or not auth:
+        logger.info("user: " + str(type(user_id)) + " auth: " + str(type(auth)))
         return False
-    token = db.get_user_token(user_id)
+    token = db.get_user_token(int(user_id))
+    logger.info("Auth OK")
     return auth == token
 
 
@@ -249,10 +251,6 @@ def create_goal():
     data = request.get_json()
     if not data or "goal" not in data:
         return jsonify({"error": "Missing 'goal' in request body"}), 400
-
-    user_id = data.get("user_id")
-    if not "user_id" in data:
-        return jsonify({"error": "Missing user_id in request"}), 401
 
     # Check authentication
     if not check_auth(dict(request.headers)):
