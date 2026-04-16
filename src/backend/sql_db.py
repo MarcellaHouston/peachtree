@@ -16,6 +16,25 @@ _ALL_DAYS = [
     "sunday",
 ]
 
+
+def _parse_days(days) -> list:
+    if not days:
+        return []
+    if isinstance(days, str):
+        try:
+            parsed = json.loads(days)
+        except json.JSONDecodeError:
+            parsed = days.split(",")
+    else:
+        parsed = days
+    if isinstance(parsed, str):
+        parsed = parsed.split(",")
+    return [
+        day.strip().lower()
+        for day in parsed
+        if isinstance(day, str) and day.strip().lower() in _ALL_DAYS
+    ]
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -258,7 +277,7 @@ class Database:
         # sorted highest impetus first so urgent tasks get the best day slots
         tasks = self._run_param(
             """
-            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, g.days_of_week
+            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, t.days_of_week, g.days_of_week
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
@@ -279,26 +298,34 @@ class Database:
         # cumulative all_tasks counter once at the end.
         goal_instance_counts: dict = {}
 
-        for task_id, freq, _, goal_id, goal_days_of_week in tasks:
-            # Restrict to the intersection of user availability and goal's allowed days
-            if goal_days_of_week:
-                goal_days = set(goal_days_of_week.split(","))
-                eligible_days = [d for d in avail_days if d in goal_days]
+        for task_id, freq, _, goal_id, task_days_of_week, goal_days_of_week in tasks:
+            # Prefer the generated task's own days. Fall back to the goal's allowed
+            # days for older rows that do not have task-level days yet.
+            task_days = _parse_days(task_days_of_week)
+            goal_days = _parse_days(goal_days_of_week)
+            allowed_days = task_days or goal_days
+            if allowed_days:
+                eligible_days = [d for d in avail_days if d in allowed_days]
             else:
                 eligible_days = avail_days
             if not eligible_days:
                 logger.info(
-                    "📅 Skipping task_id=%s for user=%s: no overlap between availability=%s and goal_days=%s",
+                    "📅 Skipping task_id=%s for user=%s: no overlap between availability=%s and allowed_days=%s",
                     task_id,
                     user_id,
                     avail_days,
-                    goal_days_of_week,
+                    allowed_days,
                 )
                 continue
             n = len(eligible_days)
-            freq = min(freq, n)  # can't schedule more times than eligible days
-            step = max(1, n // freq)  # space out slots evenly across eligible days
+            step = max(1, n // min(freq, n))  # space out slots evenly across eligible days
             chosen = [eligible_days[(i * step) % n] for i in range(freq)]
+            logger.info(
+                "📅 Scheduling task_id=%s for user=%s on %s",
+                task_id,
+                user_id,
+                ",".join(chosen),
+            )
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
             goal_instance_counts[goal_id] = goal_instance_counts.get(goal_id, 0) + len(

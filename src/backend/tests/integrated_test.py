@@ -107,13 +107,21 @@ class IntegrationTestCase(unittest.TestCase):
             headers={"Authorization": "test-token"},
         )
 
-    def _insert_task(self, goal_id, weekly_frequency=2, weight=1, impetus=3, difficulty_score=50):
+    def _insert_task(
+        self,
+        goal_id,
+        weekly_frequency=2,
+        weight=1,
+        impetus=3,
+        difficulty_score=50,
+        days_of_week=None,
+    ):
         self.real_db._run_param(
             """INSERT INTO tasks (goal_id, task, weekly_frequency, weight,
-               start_date, end_date, impetus, difficulty_score)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               days_of_week, start_date, end_date, impetus, difficulty_score)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (goal_id, "Do the thing", weekly_frequency, weight,
-             date.today().isoformat(), "2027-12-31", impetus, difficulty_score)
+             days_of_week, date.today().isoformat(), "2027-12-31", impetus, difficulty_score)
         )
         self.real_db._commit()
 
@@ -870,6 +878,18 @@ class TestGoalCompletion(IntegrationTestCase):
         self.assertEqual(c["all_tasks"], 2)
         self.assertEqual(c["completed_tasks"], 0)
         self.assertEqual(c["percent_completed"], 0)
+
+    def test_weekly_assign_respects_task_days_over_goal_days(self):
+        self._insert_user(availability={"tuesday": 5, "thursday": 5})
+        self.create_goal(days_of_week="tuesday,thursday", end_date="2027-12-31")
+        goal_id = self.real_db.select("goals", "all")[0][0]
+        self._insert_task(goal_id, weekly_frequency=1, days_of_week="thursday")
+
+        self.post_json("/schedule/weekly", {"user_id": "alice"})
+        schedule = self._schedule()
+
+        self.assertEqual(schedule["tuesday"], [])
+        self.assertEqual(len(schedule["thursday"]), 1)
 
     def test_completed_tasks_increments_on_complete(self):
         # Schedule one task on today via /schedule/weekly, mark it complete,
