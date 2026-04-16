@@ -15,6 +15,8 @@ final class ApiCall {
     static let shared = ApiCall()
     private init() {}
 
+    // goal is being created
+    private(set) var isCreatingGoal: Bool = false
     private let serverUrl = "http://34.192.65.138"
     
     private(set) var goals = [GoalItem]()
@@ -172,6 +174,7 @@ final class ApiCall {
         await refreshGoals()
     }
     func createGoal(goal: GoalItem) async {
+        self.isCreatingGoal = true
         var goal = goal
         // randomly assign a negative number to avoid duplicate -1 id's
         if goal.id == -1 {
@@ -190,6 +193,7 @@ final class ApiCall {
         
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
+            self.isCreatingGoal = false
             
         } catch {
             print("createGoal ERROR:")

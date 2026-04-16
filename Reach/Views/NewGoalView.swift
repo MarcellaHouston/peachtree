@@ -59,14 +59,8 @@ struct NewGoalView: View {
         .cornerRadius(15)
         .fullScreenCover(isPresented: $showGuidance,
                                  onDismiss: didDismiss) {
-            let goal = GoalItemBuilder()
-                .title("Go to the gym 3 times a week.")
-                .category("Fitness")
-                .due(Date(timeIntervalSinceNow: 10000))
-                .mon().wed().fri()
-                .id(4)
-                .build()
-            GuidancePopupView(goal: ApiCall.shared.goals.last ?? goal,
+            
+            GuidancePopupView(goal: goal,
                               isShowing: $showGuidance, editMode: false)
             .frame(maxWidth: .infinity,
                    maxHeight: .infinity)
@@ -74,11 +68,14 @@ struct NewGoalView: View {
             .ignoresSafeArea(edges: .all)
         }
     }
+    
     func didDismiss() {
         showGuidance = false
         isShowing = false
     }
 }
+
+
 
 
 // A small example of using this popup

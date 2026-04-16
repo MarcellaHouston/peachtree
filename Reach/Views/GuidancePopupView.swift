@@ -29,7 +29,8 @@ struct GuidancePopupView: View {
             // Check if we should show the review screen or the mic screen
             if audioManager.showReview {
                 reviewSection
-            } else {
+            }
+            else {
                 recordingSection
             }
         }
@@ -58,32 +59,47 @@ struct GuidancePopupView: View {
                     .padding(10)
             }
             
-            // button connection to audio manager, starts recording when pressed
-            Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goal.id)) }) {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 35))
-                    .foregroundColor(.white)
-                    .frame(width: 80, height: 80)
+            if (ApiCall.shared.isCreatingGoal) {
+                VStack {
+                    ProgressView()
+                        .tint(.purple)
+                    Text("Syncing with backend...")
+                        .font(.caption)
+                        .padding(.top, 8)
                 
-                    // color changes based on audio manager state
-                    .background(audioManager.isRecording ? .red : Color(red: 0.45, green: 0.35, blue: 0.65))
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)
+                }
+                .padding(.bottom, 30)
             }
-            .padding(.top, 35)
-            .buttonStyle(MicButtonStyle())
-            
-            // while waiting for LLM response, shows the user "Creating a plan"
-            if audioManager.isUploading {
-                ProgressView("Creating a plan...")
-                    .padding(.top, 20)
+            // button connection to audio manager, starts recording when pressed
+            else {
+                Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goal.id)) }) {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 35))
+                        .foregroundColor(.white)
+                        .frame(width: 80, height: 80)
+                    
+                    // color changes based on audio manager state
+                        .background(audioManager.isRecording ? .red : Color(red: 0.45, green: 0.35, blue: 0.65))
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)
+                }
+                .padding(.top, 35)
+                .buttonStyle(MicButtonStyle())
                 
-                //if user is still recording, displays this
-            } else {
-                Text(audioManager.isRecording ? "Listening..." : "Press to begin to speak")
-                    .font(.system(size: 20, weight: .regular))
-                    .foregroundColor(audioManager.isRecording ? .red : .black)
-                    .padding(.top, 24)
+                
+                
+                // while waiting for LLM response, shows the user "Creating a plan"
+                if audioManager.isUploading {
+                    ProgressView("Creating a plan...")
+                        .padding(.top, 20)
+                    
+                    //if user is still recording, displays this
+                } else {
+                    Text(audioManager.isRecording ? "Listening..." : "Press to begin to speak")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundColor(audioManager.isRecording ? .red : .black)
+                        .padding(.top, 24)
+                }
             }
             
             // Footer with cancel button
@@ -107,19 +123,24 @@ struct GuidancePopupView: View {
                 .font(.title)
                 .padding(.vertical, 20)
             
+            // Summary of User's Wants
             Text("Wants:")
-            // TODO: change to reflect backend schema for GG
             Text(audioManager.summary)
+            
+            // Summary of LLM's Suggestions
             Text("Suggestions:")
-            // Text(audioManager.suggestions)
+            Text(audioManager.suggestedChanges["summary"] ?? "No summary available")
+
             Divider()
                 .padding(10)
             
             
             // Goal Change suggestion
             // TODO: checkbox for each suggestion
-            SuggestionCheckbox(suggestion: "Maybe do something else")
-            
+            //Text(audioManager.suggestedChanges["name"] ?? "No summary available")
+            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["name"] ?? "")
+            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["end_date"] ?? "")
+            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["days_of_week"] ?? "")
             
             // Footer with Cancel & Confirm buttons
             HStack {
@@ -135,6 +156,7 @@ struct GuidancePopupView: View {
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
             }
+            .padding(.top, 20)
         }
         .frame(width: 360, height: 500)
         .background(.white)
@@ -171,7 +193,7 @@ struct GuidancePopupView: View {
                 .id(4)
                 .build()
             GuidancePopupView(goal: ApiCall.shared.goals.last ?? goal,
-                isShowing: $showingGGPopup)
+                isShowing: $showingGGPopup, editMode: false)
         }
     }
     }

@@ -23,6 +23,8 @@ class AudioManager: NSObject {
     var extractedName: String = ""
     var extractedEndDate: String = ""
     var extractedDays: String = ""
+    // Goal Guidance
+    var suggestedChanges: [String:String] = [:]
     
     //var for server ip address
     private let backendIP = "34.192.65.138"
@@ -117,9 +119,11 @@ class AudioManager: NSObject {
         // try to send the audio to the backedn
         do {
             let audioData = try Data(contentsOf: fileURL)
+            //print("DEBUG: Audio file size: \(audioData.count) bytes")
             request.httpBody = audioData
             
             URLSession.shared.dataTask(with: request) { data, response, error in
+                
                 self.isUploading = false // Direct update
                 
                 if let error = error {
@@ -148,6 +152,14 @@ class AudioManager: NSObject {
                                 self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                                 
                             }
+
+                            // EOD Check In
+                            self.transcription = "\(json["transcription"] ?? "No transcription available.")"
+                            // EOD Check In/Goal Guidance
+                            self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
+                            // Goal Guidance
+                            self.suggestedChanges = json["suggested_changes"] as? [String: String] ?? [:]
+                            // NLP
                             self.showReview = true
                         }
                     } catch {
@@ -172,6 +184,8 @@ class AudioManager: NSObject {
         
         // sending json
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(UserCreds.shared.getToken(), forHTTPHeaderField: "Authorization")
+        request.setValue(String(UserCreds.shared.getIntId() ?? -1), forHTTPHeaderField: "User-ID")
         
         // create data dictionary based on python variables
         let body: [String: Any] = [
@@ -218,7 +232,7 @@ enum AudioEndpoint {
         case .goalGuidance(let id):
             return UploadConfig(
                 url: baseUrl.appendingPathComponent("/goal_guidance"),
-                extraParameters: ["goal_id": id]
+                extraParameters: ["Goal-Id": id]
             )
         case .endOfDay:
             return UploadConfig(
