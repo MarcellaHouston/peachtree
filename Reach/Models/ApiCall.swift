@@ -90,6 +90,10 @@ final class ApiCall {
         struct Res: Codable {
             let goals: [GoalSchema]
         }
+<<<<<<< HEAD
+=======
+        // send username in body
+>>>>>>> 693e356 (Changed refreshGoals to send username in request body)
         let body: [String: Any] = [
             "user_id": UserCreds.shared.getStringId() as Any
         ]
@@ -186,7 +190,6 @@ final class ApiCall {
         
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
-            //to get real id
             
         } catch {
             print("createGoal ERROR:")
