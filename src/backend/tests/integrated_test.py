@@ -65,6 +65,7 @@ class _FakeLLMClient:
             return {
                 **self._FAKE_SUGGESTIONS,
                 "weekly_summary": "You completed some tasks and have room to improve consistency.",
+                "changes_title": "Increase Weekly Consistency",
             }, True, 0
         if self.use_case == self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
             return self._FAKE_SUGGESTIONS, True, 0
@@ -1235,6 +1236,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
         self.assertIn("weekly_summary", data)
+        self.assertIn("changes_title", data)
         self.assertIn("changes_summary", data)
         self.assertEqual(data["stats"], {"completed": 1, "total": 2})
 

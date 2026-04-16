@@ -582,7 +582,7 @@ def daily_goal_digest():
 # ---------------------------------------------------------------------------
 
 """
-Suggestions JSON SCHEMA: Generate a JSON object with exactly three entries: "suggested_changes", "weekly_summary", and "changes_summary". "suggested_changes" should map to a list of proposed changes, while "weekly_summary" comments on the week and "changes_summary" only describes the proposed changes with brief justification.
+Suggestions JSON SCHEMA: Generate a JSON object with exactly four entries: "suggested_changes", "weekly_summary", "changes_title", and "changes_summary". "suggested_changes" should map to a list of proposed changes, while "weekly_summary" comments on the week, "changes_title" titles the proposed changes, and "changes_summary" only describes the proposed changes with brief justification.
 "suggested_changes" (list) A list of proposed changes, with each object containing "goal_id", any number of ["name","end_date","difficulty","days_of_week"], and "summary". This should always be at least 2 changes, but no more than 5.
 - "goal_id" (int) The goal you are changing, gotten from the goals provided in the context.
 - "name" (string, optional) Included if you wish to change the name to reflect changes. This is the title for the goal.
@@ -591,6 +591,7 @@ Suggestions JSON SCHEMA: Generate a JSON object with exactly three entries: "sug
 - "days_of_week" (string, optional) Included if you wish to modify which days the goal may be (but not necessarily end up being) performed. Comma-delimited list of days, no spaces, and lowercase (e.g., "monday,wednesday,friday").
 - "summary" (string) A summary of this proposed change. This will be what the user sees and uses to accept or decline the change. Should be "git commit or changelog -esque" grammar with infinitive verbs, e.g. "Add Sunday as a day to go to the gym, and push end date back by a week". This should be within approximately 20 words. This MUST reflect the objective change to the goal, not the change to task implied nor the intent behind the change. This will be conveyed through "changes_summary".
 "weekly_summary" (string) Commentary on the user's weekly proceedings: what went well, what did not, and the overall pattern. This should be within approximately 30 words. Speak in second person.
+"changes_title" (string) A short title for the proposed changes. Use title case or concise action phrasing, e.g. "Increase Push Up Frequency" for a summary like "Increase push up frequency by adding more days and extend the deadline to improve completion chances."
 "changes_summary" (string) A summary that only describes the proposed changes and gives brief justification, e.g. "Add Tuesday and Thursday rides to improve weekly consistency." This should be within approximately 30 words. Speak in second person.
 """
 
@@ -620,6 +621,7 @@ def receive_suggestions():
         return jsonify({"error": "Expected a non-empty list of changes"}), 400
 
     for change in accepted_changes:
+        change.pop("summary", None)
         goal_id = change.get("goal_id")
         if not goal_id:
             return jsonify({"error": "Each change must include goal_id"}), 400

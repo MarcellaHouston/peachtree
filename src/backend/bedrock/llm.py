@@ -191,7 +191,12 @@ class LLMClient:
                     prompts / self.files[self.UseCase.GENERATE_WEEKLY_SUGGESTIONS]
                 )
                 self.rag = False
-                self.schema = ["changes_summary", "suggested_changes", "weekly_summary"]
+                self.schema = [
+                    "changes_summary",
+                    "suggested_changes",
+                    "weekly_summary",
+                    "changes_title",
+                ]
             case self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
                 file_path = (
                     prompts / self.files[self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS]
@@ -503,6 +508,18 @@ class LLMClient:
                             "Error: The previous response had an invalid weekly_summary value. Please provide weekly_summary as a string."
                         )
                         continue
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not isinstance(json_response["changes_title"], str)
+                    ):
+                        print(
+                            "Invalid changes_title value: changes_title must be a string."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_title value. Please provide changes_title as a string."
+                        )
+                        continue
 
                     allowed_changes = ["name", "end_date", "difficulty", "days_of_week"]
                     allowed_change_keys = allowed_changes + ["goal_id", "summary"]
@@ -604,6 +621,17 @@ class LLMClient:
                         valid = False
                         self.model.previous_conversation.append(
                             "Error: The previous response had an invalid weekly_summary value. Please provide a new response with a non-empty weekly_summary."
+                        )
+                    if (
+                        self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS
+                        and not json_response["changes_title"].strip()
+                    ):
+                        print(
+                            "Invalid changes_title value: changes_title cannot be empty."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_title value. Please provide a new response with a non-empty changes_title."
                         )
 
                     if not json_response["changes_summary"].strip():
