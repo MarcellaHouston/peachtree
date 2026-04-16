@@ -246,8 +246,6 @@ class LLMClient:
             if self.use_case in [
                 self.UseCase.GENERATE_TASKS,
                 self.UseCase.GENERATE_TALKING_POINTS,
-                self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
-                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
             ]:
                 try:
                     json_response = loads(response)
@@ -263,6 +261,8 @@ class LLMClient:
                     continue
 
             if self.use_case in [
+                self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
+                self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
                 self.UseCase.EXTRACT_GOAL_CONTENT,
             ]:
                 try:
@@ -274,7 +274,7 @@ class LLMClient:
                     )
                     valid = False
                     self.model.previous_conversation.append(
-                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object with only these allowed keys: name, end_date, days_of_week."
+                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object and adheres to the schema."
                     )
                     continue
 
@@ -466,18 +466,47 @@ class LLMClient:
                         )
                         continue
 
+                    if not isinstance(json_response["suggested_changes"], list):
+                        print(
+                            "Invalid suggested_changes value: suggested_changes must be a list."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid suggested_changes value. Please provide suggested_changes as a list."
+                        )
+                        continue
+                    if not isinstance(json_response["changes_summary"], str):
+                        print(
+                            "Invalid changes_summary value: changes_summary must be a string."
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid changes_summary value. Please provide changes_summary as a string."
+                        )
+                        continue
+
                     allowed_changes = ["name", "end_date", "difficulty", "days_of_week"]
+                    allowed_change_keys = allowed_changes + ["goal_id", "summary"]
 
                     # check changes in allowed_changes
                     for change in json_response["suggested_changes"]:
+                        if not isinstance(change, dict):
+                            print(
+                                "Invalid suggested change value: each suggested change must be an object."
+                            )
+                            valid = False
+                            self.model.previous_conversation.append(
+                                "Error: The previous response had an invalid suggested change. Please provide each suggested change as a JSON object."
+                            )
+                            continue
                         for key in change:
-                            if key not in allowed_changes:
+                            if key not in allowed_change_keys:
                                 print(
-                                    f"Invalid suggested change key: {key}. Must be one of the following: {', '.join(allowed_changes)}."
+                                    f"Invalid suggested change key: {key}. Must be one of the following: {', '.join(allowed_change_keys)}."
                                 )
                                 valid = False
                                 self.model.previous_conversation.append(
-                                    "Error: The previous response had an invalid suggested change key. Please provide a new response with suggested changes that are only from the following list: name, end_date, difficulty, days_of_week."
+                                    "Error: The previous response had an invalid suggested change key. Please provide a new response with suggested changes that only use goal_id, summary, name, end_date, difficulty, and days_of_week."
                                 )
                         change_set = set(change)
 
