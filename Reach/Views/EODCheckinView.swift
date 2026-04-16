@@ -61,7 +61,7 @@ struct EODCheckinView: View {
             .padding(.top, 30)
 
             // button connection to audio manager, starts recording when pressed
-            Button(action: { audioManager.toggleRecording() }) {
+            Button(action: { audioManager.toggleRecording(at: .endOfDay) }) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 35))
                     .foregroundColor(.white)

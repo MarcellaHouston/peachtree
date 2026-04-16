@@ -46,7 +46,7 @@ struct GoalOptions: View {
                             // mic button
                             // hide button while the NLP is happening
                             if (!audioManager.isUploading) {
-                                Button(action: { audioManager.toggleRecording() }) {
+                                Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goal.id)) }) {
                                     Image(systemName: "mic.fill")
                                         .font(.system(size: 20))
                                         .foregroundColor(.white)

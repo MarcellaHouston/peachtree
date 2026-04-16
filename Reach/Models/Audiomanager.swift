@@ -9,39 +9,6 @@ import Foundation
 import AVFoundation
 import Observation
 
-struct UploadConfig {
-    let url: URL
-    let extraParameters: [String: Any]?
-}
-
-enum AudioEndpoint {
-    case goalGuidance(goalId: Int)
-    case endOfDay
-    case nlp(goalId: Int)
-
-    var config: UploadConfig {
-        let baseUrl = URL(string: "http://34.192.65.138:80")!
-        
-        switch self {
-        case .goalGuidance(let id):
-            return UploadConfig(
-                url: baseUrl.appendingPathComponent("/goal_guidance"),
-                extraParameters: ["goal_id": id]
-            )
-        case .endOfDay:
-            return UploadConfig(
-                url: baseUrl.appendingPathComponent("/stt/eod_summary"),
-                extraParameters: nil
-            )
-        case .nlp(let id):
-            return UploadConfig(
-                url: baseUrl.appendingPathComponent("/extract_goal"),
-                extraParameters: ["goal_id": id]
-            )
-        }
-    }
-}
-
 @Observable
 class AudioManager: NSObject {
     // common variables
@@ -56,9 +23,9 @@ class AudioManager: NSObject {
     private let backendIP = "34.192.65.138"
     
     //press the button to record, press again to stop
-    func toggleRecording() {
+    func toggleRecording(at endpoint: AudioEndpoint) {
         if isRecording {
-            stopRecording()
+            stopRecording(at: endpoint)
         } else {
             startRecording()
         }
@@ -70,68 +37,78 @@ class AudioManager: NSObject {
         //to account for older ios versions
         
         //removed call for "requestRecordPermission
-                do {
-                    try session.setCategory(.playAndRecord, mode: .default)
-                    try session.setActive(true)
-                    
-                    let path = FileManager.default.temporaryDirectory.appendingPathComponent("reflection.m4a")
-                    let settings: [String: Any] = [
-                        AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                        AVSampleRateKey: 12000,
-                        AVNumberOfChannelsKey: 1,
-                        AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-                    ]
-                    
-                    self.audioRecorder = try AVAudioRecorder(url: path, settings: settings)
-                    self.audioRecorder?.record()
-                    
-                    self.isRecording = true
-                } catch {
-                    print("Recording failed: \(error)")
-                }
-            }
-    
-    
-    private func stopRecording() {
-            audioRecorder?.stop()
-            isRecording = false
+        do {
+            try session.setCategory(.playAndRecord, mode: .default)
+            try session.setActive(true)
             
-            // CHANGE THIS:
-            if let url = audioRecorder?.url {
-                startUpload(fileURL: url)
-            }
-        }
-    
-    func startUpload(fileURL: URL) {
-           //show analyzing
-                self.isUploading = true
+            let path = FileManager.default.temporaryDirectory.appendingPathComponent("reflection.m4a")
+            let settings: [String: Any] = [
+                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+                AVSampleRateKey: 12000,
+                AVNumberOfChannelsKey: 1,
+                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+            ]
             
-            //start the actual network request
-            self.uploadAudio(fileURL: fileURL)
+            self.audioRecorder = try AVAudioRecorder(url: path, settings: settings)
+            self.audioRecorder?.record()
+            
+            self.isRecording = true
+        } catch {
+            print("Recording failed: \(error)")
         }
+    }
+    
+    
+    private func stopRecording(at endpoint: AudioEndpoint) {
+        audioRecorder?.stop()
+        isRecording = false
+        
+        // CHANGE THIS:
+        if let url = audioRecorder?.url {
+            startUpload(at: endpoint, fileURL: url)
+        }
+    }
+    
+    func startUpload(at endpoint: AudioEndpoint, fileURL: URL) {
+        //show analyzing
+        self.isUploading = true
+        
+        //start the actual network request
+        self.uploadAudio(to: endpoint, fileURL: fileURL)
+    }
     
     
     // the network request to send file to backend
-    
-private func uploadAudio(fileURL: URL) {
-        // TODO: change url to accommodate end of day vs. goal guidance
-        guard let url = URL(string: "http://\(backendIP):80/stt/eod_summary") else { return }
+    private func uploadAudio(to endpoint: AudioEndpoint, fileURL: URL) {
         
         self.isUploading = true // Direct update
+    
+        // holds info about which endpoint the request is going to
+        let endpointConfig = endpoint.config
         
-        var request = URLRequest(url: url)
+        // using the url from AudioEndpoint enum
+        var request = URLRequest(url: endpointConfig.url)
+    
         request.httpMethod = "POST"
         request.timeoutInterval = 240
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.setValue(UserCreds.shared.getToken(), forHTTPHeaderField: "Authorization")
-        request.setValue(UserCreds.shared.getStringId(), forHTTPHeaderField: "User-ID")
+        request.setValue(String(UserCreds.shared.getIntId() ?? -1), forHTTPHeaderField: "User-ID")
+        request.setValue(UserCreds.shared.getStringId(), forHTTPHeaderField: "Username")
         request.setValue(".m4a", forHTTPHeaderField: "File-Type")
+    
+        // add any additional headers needed for goal guidance or nlp
+        if let params = endpointConfig.extraParameters {
+            for (key, value) in params {
+                request.setValue("\(value)", forHTTPHeaderField: key)
+            }
+        }
         
+        // try to send the audio to the backedn
         do {
             let audioData = try Data(contentsOf: fileURL)
             request.httpBody = audioData
             
-            // FIX: Remove 'let task =' and move '.resume()' to the end of this block
             URLSession.shared.dataTask(with: request) { data, response, error in
                 self.isUploading = false // Direct update
                 
@@ -143,9 +120,8 @@ private func uploadAudio(fileURL: URL) {
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
                     do {
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                            // TODO: add suggestions and proposed changes for guidance
-                            // Direct updates without DispatchQueue
-                            self.summary = "\(json["summary"] ?? "No summary available.")"
+                            // TODO: add other results for guidance and NLP
+                            self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
                             self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                             self.showReview = true
                         }
@@ -163,7 +139,6 @@ private func uploadAudio(fileURL: URL) {
 
     
     // save function so back end saves it after user presses "looks good"
-    
     func saveConversation() {
         guard let url = URL(string: "http://\(backendIP):80/stt/save_convo") else { return }
         
@@ -198,5 +173,38 @@ private func uploadAudio(fileURL: URL) {
         
         // Reset UI state to go back to original screen
         self.showReview = false
+    }
+}
+
+struct UploadConfig {
+    let url: URL
+    let extraParameters: [String: Any]?
+}
+
+enum AudioEndpoint {
+    case goalGuidance(goalId: Int)
+    case endOfDay
+    case nlp(goalId: Int)
+
+    var config: UploadConfig {
+        let baseUrl = URL(string: "http://34.192.65.138:80")!
+        
+        switch self {
+        case .goalGuidance(let id):
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/goal_guidance"),
+                extraParameters: ["goal_id": id]
+            )
+        case .endOfDay:
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/stt/eod_summary"),
+                extraParameters: nil
+            )
+        case .nlp(let id):
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/extract_goal"),
+                extraParameters: ["goal_id": id]
+            )
+        }
     }
 }

@@ -59,7 +59,7 @@ struct GuidancePopupView: View {
             }
             
             // button connection to audio manager, starts recording when pressed
-            Button(action: { audioManager.toggleRecording() }) {
+            Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goal.id)) }) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 35))
                     .foregroundColor(.white)
