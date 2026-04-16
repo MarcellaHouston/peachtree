@@ -38,6 +38,20 @@ final class ApiCall {
     // Goal id -> index in goals that id is at
     private(set) var idToGoalInd: [Int:Int] = [:]
     
+    func addMod(_ mod: GoalModification) {
+            // Remove any existing mod for this specific field first to avoid duplicates
+            removeMod(goalId: mod.id, key: mod.key)
+            self.goalMods.append(mod)
+            print("Added mod: \(mod)")
+        }
+
+    func removeMod(goalId: Int, key: GoalModification.Key) {
+        if let index = goalMods.firstIndex(where: { $0.id == goalId && $0.key == key }) {
+            self.goalMods.remove(at: index)
+            
+        }
+    }
+    
     // Populate with fallback data
     func fallback() {
         goalMods = FallbackData.fallbackGoalMods
@@ -92,10 +106,7 @@ final class ApiCall {
         struct Res: Codable {
             let goals: [GoalSchema]
         }
-<<<<<<< HEAD
-=======
-        // send username in body
->>>>>>> 693e356 (Changed refreshGoals to send username in request body)
+
         let body: [String: Any] = [
             "user_id": UserCreds.shared.getStringId() as Any
         ]

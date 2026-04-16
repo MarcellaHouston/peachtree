@@ -9,37 +9,48 @@ import SwiftUI
 
 struct SuggestionCheckbox: View {
     let suggestion: String
-    @State private var selected = false
+    // Changed from @State to properties that are controlled by the parent
+    let isSelected: Bool
+    let onToggle: () -> Void
     
     var body: some View {
         HStack(spacing: 18) {
-            //checkbox button on the left
-            //tapping it toggles whether the task is completed
             Button {
-                selected.toggle()
+                // Trigger the logic in ReviewSection (toggleSuggestion)
+                onToggle()
             } label: {
                 Rectangle()
-                    .fill(selected ? Color(red: 0.42, green: 0.33, blue: 0.72) : Color.white)
+                    .fill(isSelected ? Color(red: 0.42, green: 0.33, blue: 0.72) : Color.white)
                     .frame(width: 20, height: 20)
-                    //if the task is completed a checkmark is displayed
                     .overlay {
-                        if selected {
+                        if isSelected {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                         }
                     }
-                    //if the task is not completed a dark border outlines the square
                     .overlay {
-                            Rectangle()
-                                .stroke(Color(red: 0.34, green: 0.33, blue: 0.39), lineWidth: 4.5)
+                        Rectangle()
+                            .stroke(Color(red: 0.34, green: 0.33, blue: 0.39), lineWidth: 4.5)
                     }
             }
             .buttonStyle(.plain)
+            
             Text(suggestion)
+                .font(.body)
+                .onTapGesture {
+                    // Also toggle when tapping the text for better UX
+                    onToggle()
+                }
         }
     }
 }
+
 #Preview {
-        SuggestionCheckbox(suggestion: "this is a checkbox")
+    // Preview with a dummy state
+    SuggestionCheckbox(
+        suggestion: "this is a checkbox",
+        isSelected: true,
+        onToggle: {}
+    )
 }

@@ -130,7 +130,7 @@ struct GuidancePopupView: View {
             
             // Summary of LLM's Suggestions
             Text("Suggestions:")
-            Text(audioManager.suggestedChanges["summary"] ?? "No summary available")
+            Text(audioManager.changesSummary)
 
             Divider()
                 .padding(10)
@@ -139,9 +139,28 @@ struct GuidancePopupView: View {
             // Goal Change suggestion
             // TODO: checkbox for each suggestion
             //Text(audioManager.suggestedChanges["name"] ?? "No summary available")
-            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["name"] ?? "")
-            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["end_date"] ?? "")
-            SuggestionCheckbox(suggestion: audioManager.suggestedChanges["days_of_week"] ?? "")
+            // Individual Suggestion Checkboxes
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(audioManager.suggestedChanges.indices, id: \.self) { index in
+                    let suggestion = audioManager.suggestedChanges[index]
+                    
+                    if let summaryText = suggestion["summary"], !summaryText.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(getLabel(for: suggestion))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                            
+                            SuggestionCheckbox(
+                                suggestion: summaryText,
+                                isSelected: isSuggestionSelected(suggestion),
+                                onToggle: { toggleSuggestion(suggestion) }
+                            )
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
             
             // Footer with Cancel & Confirm buttons
             HStack {
@@ -150,9 +169,10 @@ struct GuidancePopupView: View {
                 }
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
+                    print("DEBUG: Save Changes tapped. Applying \(ApiCall.shared.goalMods.count) modifications.")
                     isShowing = false
                     Task {
-                        await ApiCall.shared.updateGoal(goal: goal)
+                        await ApiCall.shared.applyGoalMods()
                     }
                 }
                 .buttonStyle(PurpleButtonStyle(active: true))
@@ -164,7 +184,57 @@ struct GuidancePopupView: View {
         .cornerRadius(15)
     }
     
+    // MARK: - Helper Functions
+    func getLabel(for suggestion: [String: String]) -> String {
+            if suggestion["name"] != nil { return "Change name to:" }
+            if suggestion["end_date"] != nil { return "Change end date to:" }
+            if suggestion["days_of_week"] != nil { return "Change schedule to:" }
+            if suggestion["difficulty"] != nil { return "Change difficulty to:" }
+            return "Suggested change:"
+        }
+
+        /// Checks if this specific suggestion is already in the global goalMods list
+        func isSuggestionSelected(_ suggestion: [String: String]) -> Bool {
+            let key = getModificationKey(for: suggestion)
+            // Check ApiCall.shared.goalMods for a match with this goal's ID and the specific field key
+            return ApiCall.shared.goalMods.contains { $0.id == goal.id && $0.key == key }
+        }
+
+        /// Toggles the modification in the global ApiCall.shared.goalMods list
+        func toggleSuggestion(_ suggestion: [String: String]) {
+            let key = getModificationKey(for: suggestion)
+            
+            if isSuggestionSelected(suggestion) {
+                // If it exists, remove it (uncheck)
+                print("DEBUG: Removing modification for key: \(key)")
+                ApiCall.shared.removeMod(goalId: goal.id, key: key)
+            } else {
+                // Find the suggested value (e.g., the actual new name or date)
+                let dataKeys = ["name", "end_date", "days_of_week", "difficulty"]
+                for k in dataKeys {
+                    if let val = suggestion[k] {
+                        print("DEBUG: Adding modification - Key: \(k), Value: \(val)")
+                        // Map "end_date" to your internal ".due" key
+                        let modKey: GoalModification.Key = (k == "end_date") ? .due : key
+                        let newMod = GoalModification(id: goal.id, key: modKey, val: val)
+                        ApiCall.shared.addMod(newMod)
+                        break
+                    }
+                }
+            }
+        }
+
+        func getModificationKey(for suggestion: [String: String]) -> GoalModification.Key {
+            if suggestion["name"] != nil { return .title }
+            if suggestion["end_date"] != nil { return .due }
+            if suggestion["days_of_week"] != nil { return .repeatDays }
+            if suggestion["difficulty"] != nil { return .difficulty }
+            return .title
+        }
+
+    
 }
+
 
 
 // A small example of using this popup

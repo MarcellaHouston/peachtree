@@ -24,7 +24,8 @@ class AudioManager: NSObject {
     var extractedEndDate: String = ""
     var extractedDays: String = ""
     // Goal Guidance
-    var suggestedChanges: [String:String] = [:]
+    var suggestedChanges: [[String: String]] = []
+    var changesSummary: String = ""
     
     //var for server ip address
     private let backendIP = "34.192.65.138"
@@ -156,9 +157,13 @@ class AudioManager: NSObject {
                             // EOD Check In
                             self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                             // EOD Check In/Goal Guidance
-                            self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
+                            self.summary = "\(json["summary"] ?? json["user_summary"] ?? "No summary available.")"
+                            self.changesSummary = "\(json["changes_summary"] ?? "No summary available.")"
+                            print("DEBUG: Summary: \(self.summary)")
                             // Goal Guidance
-                            self.suggestedChanges = json["suggested_changes"] as? [String: String] ?? [:]
+                            //self.suggestedChanges = json["suggested_changes"] as? [String: Any] ?? [:]
+                            self.suggestedChanges = json["suggested_changes"] as? [[String: String]] ?? []
+                            print("DEBUG: Suggested changes: \(self.suggestedChanges)")
                             // NLP
                             self.showReview = true
                         }

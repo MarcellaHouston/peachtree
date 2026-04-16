@@ -78,6 +78,8 @@ struct GoalsView: View {
                                     showEditGoal = true
                                 case .guidance:
                                     showGuidance = true
+                                    showEditGoal = false
+                                    
                                 }
                             }
                             //so you can't edit/click a goal that doesnt have a real id yet (not on demo mode)
