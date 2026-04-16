@@ -161,6 +161,7 @@ class LLMClient:
                     "start_date",
                     "end_date",
                     "impetus",
+                    "difficulty_score"
                 ]
             case self.UseCase.GENERATE_TALKING_POINTS:
                 file_path = prompts / self.files[self.UseCase.GENERATE_TALKING_POINTS]

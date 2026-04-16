@@ -18,7 +18,7 @@ db.insert(
     "users",
     [
         "Reach staff",
-        "password",
+        "scrypt:32768:8:1$5fXSqKRIYoY9nuUp$0e3f5c9e152588e3da245c48117629ca9ffc128e810087ea960ee073c503c4858f5d663c1c53a18121f507231e0a5a58f769a7e295f9762677ef0b1efb94d506",
         "",
         1500,
         350.0,
