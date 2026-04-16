@@ -390,13 +390,7 @@ def create_goal():
     if valid:
         logger.info("is valid!")
         for task in tasks:
-            logger.info(
-                "🧩 Generated task for goal '%s': %s | days_of_week=%s",
-                goal["name"],
-                task["task"],
-                task.get("days_of_week"),
-            )
-            db.insert(
+            task_id = db.insert(
                 "tasks",
                 [
                     goal_id,
@@ -409,6 +403,13 @@ def create_goal():
                     task["impetus"],
                     task["difficulty_score"],
                 ],
+            )
+            logger.info(
+                "🧩 Generated task_id=%s for goal '%s': %s | days_of_week=%s",
+                task_id,
+                goal["name"],
+                task["task"],
+                task.get("days_of_week"),
             )
         if tasks:
             schedule = db.assign_weekly_tasks(
