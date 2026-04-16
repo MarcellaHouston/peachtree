@@ -551,7 +551,7 @@ def weekly_schedule():
 
 @app.route("/daily_goal_digest", methods=["POST"])
 def daily_goal_digest():
-    logger.info("☀️ /daily_goal_digest reached.")
+    logger.info("☀️  /daily_goal_digest reached.")
     # Called on startup after /schedule/weekly.
     # Returns today's tasks for the user, each paired with its goal name.
     # Response: { day: "monday", tasks: [{ task_id, task, goal_name, impetus, ... }] }
