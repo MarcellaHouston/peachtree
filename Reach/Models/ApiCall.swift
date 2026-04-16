@@ -173,7 +173,7 @@ final class ApiCall {
         }
         await refreshGoals()
     }
-    func createGoal(goal: GoalItem) async {
+    func createGoal(goal: GoalItem) async -> Int? {
         self.isCreatingGoal = true
         var goal = goal
         // randomly assign a negative number to avoid duplicate -1 id's
@@ -190,19 +190,22 @@ final class ApiCall {
         /*
         print("DEBUG: Created local goal with ID: \(goal.id)")
          */
-        
+        struct Res: Codable {
+            let goal_id: Int
+        }
         do {
-            let _: Empty = try await sendRequest("POST", body, "goals/create")
+            let res: Res = try await sendRequest("POST", body, "goals/create")
             self.isCreatingGoal = false
+            await refreshGoals()
+            return res.goal_id
             
         } catch {
             print("createGoal ERROR:")
             print(error)
-            
+            return nil
         }
-        await refreshGoals()
-
     }
+    
     func snoozeGoal(goal: GoalItem) async {
         //goal id less than 0 means it hasn't been assigned one yet
         if goal.id < 0 {

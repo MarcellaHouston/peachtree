@@ -9,6 +9,7 @@ import SwiftUI
 
 struct NewGoalView: View {
     @State private var goal = GoalItem()
+    @State private var goalId: Int?
     @State private var newEndDate = Date()
     @State private var showingDatePicker = false
     
@@ -40,7 +41,7 @@ struct NewGoalView: View {
                     
                     // Post goal to the backend
                     Task {
-                        await ApiCall.shared.createGoal(goal: goal)
+                        goalId = await ApiCall.shared.createGoal(goal: goal)
                     }
                     
                     //isShowing = false
@@ -61,7 +62,7 @@ struct NewGoalView: View {
                                  onDismiss: didDismiss) {
             
             GuidancePopupView(goal: goal,
-                              isShowing: $showGuidance, editMode: false)
+                              isShowing: $showGuidance, editMode: false, goalId: goalId)
             .frame(maxWidth: .infinity,
                    maxHeight: .infinity)
             .background(Color.black)

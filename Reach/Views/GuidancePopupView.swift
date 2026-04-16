@@ -15,12 +15,14 @@ struct GuidancePopupView: View {
     
     @Binding var isShowing: Bool
     var editMode: Bool
+    var goalId: Int?
     
-    init(goal: GoalItem, isShowing: Binding<Bool>, editMode: Bool = true){
+    init(goal: GoalItem, isShowing: Binding<Bool>, editMode: Bool = true, goalId: Int? = nil){
         // This is a copy because GoalItem is a struct, not a class
         self.goal = goal
         self._isShowing = isShowing
         self.editMode = editMode
+        self.goalId = goalId
         
     }
     
@@ -59,6 +61,7 @@ struct GuidancePopupView: View {
                     .padding(10)
             }
             
+            // for goal creation, don't show mic until finished loading
             if (ApiCall.shared.isCreatingGoal) {
                 VStack {
                     ProgressView()
@@ -72,12 +75,11 @@ struct GuidancePopupView: View {
             }
             // button connection to audio manager, starts recording when pressed
             else {
-                Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goal.id)) }) {
+                Button(action: { audioManager.toggleRecording(at: .goalGuidance(goalId: goalId ?? goal.id)) }) {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 35))
                         .foregroundColor(.white)
                         .frame(width: 80, height: 80)
-                    
                     // color changes based on audio manager state
                         .background(audioManager.isRecording ? .red : Color(red: 0.45, green: 0.35, blue: 0.65))
                         .clipShape(Circle())
@@ -92,7 +94,6 @@ struct GuidancePopupView: View {
                 if audioManager.isUploading {
                     ProgressView("Creating a plan...")
                         .padding(.top, 20)
-                    
                     //if user is still recording, displays this
                 } else {
                     Text(audioManager.isRecording ? "Listening..." : "Press to begin to speak")
