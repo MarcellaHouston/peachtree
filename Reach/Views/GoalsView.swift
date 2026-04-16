@@ -80,11 +80,11 @@ struct GoalsView: View {
                                     showGuidance = true
                                 }
                             }
-                            //so you can't edit/click a goal that doesnt have a real id yet
-                            .disabled(goal.id == -1)
+                            //so you can't edit/click a goal that doesnt have a real id yet (not on demo mode)
+                            .disabled(goal.id < 0 && !appState.isDemoMode && !appState.isDemoMode)
                             
-                            //opacity changes a bit to signal a unclickable goal
-                            .opacity(goal.id == -1 ? 0.5 : 1.0)
+                            //opacity changes a bit to signal a unclickable goal (not on demo)
+                            .opacity(goal.id < 0 && !appState.isDemoMode ? 0.5 : 1.0)
                             
                         }
                     }
@@ -213,12 +213,15 @@ private struct GoalRow: View {
     let iconSystemName: String
     let onTap: () -> Void
     
+    //in order to access app state for demo mode goal rows
+    private let appState = AppState.shared
+    
     var body: some View {
         //horizontal row display of goal item and pencil as well as some padding
         Button(action: onTap) {
             HStack {
-                //loading icon until the goal gets a real id
-                if goal.id == -1 {
+                //loading icon until the goal gets a real id but doesnt apply on demo
+                if goal.id < 0 && !appState.isDemoMode {
                     ProgressView()
                         .controlSize(.small)
                         .padding(.leading, 8)

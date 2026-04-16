@@ -142,7 +142,8 @@ final class ApiCall {
     
     // Informs backend of change and refreshes goals
     func updateGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Modifying goal should not have dummy id")
             return
         }
@@ -157,6 +158,11 @@ final class ApiCall {
         await refreshGoals()
     }
     func createGoal(goal: GoalItem) async {
+        var goal = goal
+        // randomly assign a negative number to avoid duplicate -1 id's
+        if goal.id == -1 {
+            goal.id = -Int.random(in: 1...1_000_000)
+        }
         let body: [String: Any] = goal.requestBody()
         
         //adding a goal locally so appears instantly
@@ -171,19 +177,18 @@ final class ApiCall {
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
             //to get real id
-            await refreshGoals()
             
         } catch {
             print("createGoal ERROR:")
             print(error)
-            //in case
-            await refreshGoals()
             
         }
+        await refreshGoals()
 
     }
     func snoozeGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Snoozing goal should not have dummy id")
             return
         }
@@ -198,7 +203,8 @@ final class ApiCall {
         await refreshGoals()
     }
     func deleteGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Modifying goal should not have dummy id")
             return
         }
@@ -282,7 +288,7 @@ final class ApiCall {
         )
         request.setValue(
             String(UserCreds.shared.getIntId() ?? -1),
-            forHTTPHeaderField: "user-id"
+            forHTTPHeaderField: "User-ID"
         )
         
         
@@ -297,6 +303,8 @@ final class ApiCall {
         guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
             throw URLError(.badServerResponse)
         }
+        
+        //print(String(data: data, encoding: .utf8)!)
     
         // Check if the server returned no data and empty response type
         if data.isEmpty && T.self == Empty.self {
