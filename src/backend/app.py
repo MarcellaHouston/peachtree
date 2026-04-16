@@ -220,7 +220,7 @@ def signup():
                 350.0,
                 0.06,
                 "{}",
-                "{}",
+                '{"monday": 5, "tuesday": 5, "wednesday": 5, "thursday": 5, "friday": 5, "saturday": 5, "sunday": 5}',
             ],
         )
         # Get id from new user (it's auto-generated when user is created)
