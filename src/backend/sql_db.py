@@ -81,6 +81,34 @@ class Database:
 
         return True
 
+    def adjust_goal_completion(
+        self, goal_id: int, completed_delta: int, all_delta: int
+    ) -> None:
+        # Apply deltas to a goal's persistent completion counters and recompute %.
+        # Counters are clamped at 0 so they never go negative even on stale undos.
+        row = self._run_param(
+            "SELECT completion FROM goals WHERE id = ?", (goal_id,)
+        ).fetchone()
+        if not row:
+            return
+        c = (
+            json.loads(row[0])
+            if row[0]
+            else {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0}
+        )
+        c["completed_tasks"] = max(0, c["completed_tasks"] + completed_delta)
+        c["all_tasks"] = max(0, c["all_tasks"] + all_delta)
+        c["percent_completed"] = (
+            round(c["completed_tasks"] / c["all_tasks"] * 100)
+            if c["all_tasks"] > 0
+            else 0
+        )
+        self._run_param(
+            "UPDATE goals SET completion = ? WHERE id = ?",
+            (json.dumps(c), goal_id),
+        )
+        self._commit()
+
     def snooze(self, goal_id: int, weeks: int) -> bool:
         # Push a goal's active_date forward by N weeks from today, then snap back
         # to the nearest past Sunday. Also removes the goal's tasks from the
@@ -114,16 +142,31 @@ class Database:
             ).fetchone()
             if sched_row and sched_row[0]:
                 schedule = json.loads(sched_row[0])
+                # Count how many of this goal's task instances we're removing,
+                # and how many were already marked complete — these need to be
+                # rolled back from the goal's cumulative completion counters.
+                removed_total = 0
+                removed_completed = 0
                 for day in _ALL_DAYS:
                     if day in schedule:
-                        schedule[day] = [
-                            e for e in schedule[day] if e["task_id"] not in task_ids
-                        ]
+                        kept = []
+                        for e in schedule[day]:
+                            if e["task_id"] in task_ids:
+                                removed_total += 1
+                                if e.get("completed"):
+                                    removed_completed += 1
+                            else:
+                                kept.append(e)
+                        schedule[day] = kept
                 self._run_param(
                     "UPDATE users SET week_schedule = ? WHERE username = ?",
                     (json.dumps(schedule), user_id),
                 )
                 self._commit()
+                if removed_total:
+                    self.adjust_goal_completion(
+                        goal_id, -removed_completed, -removed_total
+                    )
 
         return True
 
@@ -135,6 +178,7 @@ class Database:
         # each task's days_of_week column.
         from datetime import date
 
+        # if a schedule already exists for this week, subtract the number from total
         today = date.today().isoformat()
 
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
@@ -148,11 +192,45 @@ class Database:
         if not avail_days:
             return {}
 
+        # If a schedule already exists for THIS same week (e.g. create_goal
+        # triggered a mid-week rebuild), tally how many instances each goal
+        # already contributed to cumulative all_tasks. After the rebuild we
+        # apply only the *delta* so a same-week re-assignment doesn't
+        # double-count. On a true new-week rollover (different curr_week_start)
+        # the previous week's contribution is permanent history, so we leave
+        # prev_all_counts empty and add the full new totals.
+        # Note: we deliberately do NOT touch completed_tasks here — the user's
+        # historical progress should be preserved across rebuilds.
+        prev_row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        prev_all_counts: dict = {}
+        if prev_row and prev_row[0]:
+            prev_sched = json.loads(prev_row[0])
+            if prev_sched.get("curr_week_start") == this_sunday:
+                prev_task_ids = set()
+                for day in _ALL_DAYS:
+                    for e in prev_sched.get(day, []):
+                        prev_task_ids.add(e["task_id"])
+                if prev_task_ids:
+                    placeholders = ",".join(["?"] * len(prev_task_ids))
+                    tid_to_gid = dict(
+                        self._run_param(
+                            f"SELECT task_id, goal_id FROM tasks WHERE task_id IN ({placeholders})",
+                            list(prev_task_ids),
+                        ).fetchall()
+                    )
+                    for day in _ALL_DAYS:
+                        for e in prev_sched.get(day, []):
+                            gid = tid_to_gid.get(e["task_id"])
+                            if gid is not None:
+                                prev_all_counts[gid] = prev_all_counts.get(gid, 0) + 1
+
         # Fetch all tasks for active goals (active_date passed, end_date not yet reached),
         # sorted highest impetus first so urgent tasks get the best day slots
         tasks = self._run_param(
             """
-            SELECT t.task_id, t.weekly_frequency, t.impetus
+            SELECT t.task_id, t.weekly_frequency, t.impetus, t.goal_id, g.days_of_week
             FROM tasks t
             JOIN goals g ON t.goal_id = g.id
             WHERE g.user_id = ? AND g.active_date <= ? AND g.end_date >= ?
@@ -163,14 +241,28 @@ class Database:
 
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
-        n = len(avail_days)
+        # Track how many instances each goal gets so we can bump its
+        # cumulative all_tasks counter once at the end.
+        goal_instance_counts: dict = {}
 
-        for task_id, freq, _ in tasks:
-            freq = min(freq, n)  # can't schedule more times than available days
-            step = max(1, n // freq)  # space out slots evenly across available days
-            chosen = [avail_days[(i * step) % n] for i in range(freq)]
+        for task_id, freq, _, goal_id, goal_days_of_week in tasks:
+            # Restrict to the intersection of user availability and goal's allowed days
+            if goal_days_of_week:
+                goal_days = set(goal_days_of_week.split(","))
+                eligible_days = [d for d in avail_days if d in goal_days]
+            else:
+                eligible_days = avail_days
+            if not eligible_days:
+                continue
+            n = len(eligible_days)
+            freq = min(freq, n)  # can't schedule more times than eligible days
+            step = max(1, n // freq)  # space out slots evenly across eligible days
+            chosen = [eligible_days[(i * step) % n] for i in range(freq)]
             for day in chosen:
                 buckets[day].append({"task_id": task_id, "completed": False})
+            goal_instance_counts[goal_id] = goal_instance_counts.get(goal_id, 0) + len(
+                chosen
+            )
             # Persist which days this task is assigned to
             self._run_param(
                 "UPDATE tasks SET days_of_week = ? WHERE task_id = ?",
@@ -187,6 +279,16 @@ class Database:
             (json.dumps(schedule), user_id),
         )
         self._commit()
+
+        # Apply per-goal all_tasks deltas. For a same-week rebuild, prev_all_counts
+        # holds what was already counted, so the delta is the difference. For a new
+        # week (or first-ever schedule), prev_all_counts is empty and the delta
+        # equals the full new total.
+        for gid in set(goal_instance_counts) | set(prev_all_counts):
+            delta = goal_instance_counts.get(gid, 0) - prev_all_counts.get(gid, 0)
+            if delta != 0:
+                self.adjust_goal_completion(gid, 0, delta)
+
         return schedule
 
     def this_sunday(self) -> str:
@@ -195,6 +297,15 @@ class Database:
         days_since_sunday = (today.weekday() + 1) % 7
         this_sunday = (today - timedelta(days=days_since_sunday)).isoformat()
         return this_sunday
+
+    def get_week_schedule(self, user_id: str) -> dict:
+        # Return the stored week_schedule for a user without triggering reassignment.
+        row = self._run_param(
+            "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not row or not row[0]:
+            return {}
+        return json.loads(row[0])
 
     def check_new_week(self, user_id: str) -> tuple:
         # Called on app startup. Compares the most recent Sunday to the Sunday
@@ -263,6 +374,8 @@ class Database:
 
     def set_task_status(self, user_id: str, task_id: int, status: bool) -> bool:
         # Mark a task as done or not-done in the user's current week_schedule.
+        # Also bumps the parent goal's cumulative completion counter, but only
+        # if the entry's status actually changed (so a no-op call is a no-op).
         row = self._run_param(
             "SELECT week_schedule FROM users WHERE username = ?", (user_id,)
         ).fetchone()
@@ -272,16 +385,99 @@ class Database:
         from datetime import date
 
         today_name = _ALL_DAYS[(date.today().weekday()) % 7]
+        changed = False
         for entry in schedule.get(today_name, []):
             if entry["task_id"] == task_id:
-                entry["completed"] = status
+                if entry.get("completed") != status:
+                    entry["completed"] = status
+                    changed = True
                 break
         self._run_param(
             "UPDATE users SET week_schedule = ? WHERE username = ?",
             (json.dumps(schedule), user_id),
         )
         self._commit()
+
+        if changed:
+            goal_row = self._run_param(
+                "SELECT goal_id FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if goal_row:
+                self.adjust_goal_completion(goal_row[0], 1 if status else -1, 0)
         return True
+
+    def get_user_token(self, user_id: int) -> str:
+        # Get the token used for authorization for a user
+        row = self._run_param(
+            "SELECT token FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if row:
+            token = row[0]
+            return token
+        else:
+            return ""
+
+    def get_user_id(self, username: str) -> int:
+        row = self._run_param(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return row[0]
+        return -1
+
+    def check_for_username(self, username: str) -> bool:
+        row = self._run_param(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row:
+            return True
+        return False
+
+    def get_user_login(self, username: str) -> dict:
+        # Used for login primarily right now
+        fetch_data = self._run_param(
+            "SELECT id, password FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        user_data = {"User-ID": "", "password": ""}
+        if not fetch_data:
+            return user_data
+        user_data["User-ID"] = fetch_data[0]
+        user_data["password"] = fetch_data[1]
+        return user_data
+    
+    def get_glicko_task_data(self, taskid: int) -> dict:
+        # Get data needed for Glicko algorithm from a task and its overarching goal
+        fetch_data = self._run_param(
+            "SELECT impetus, difficulty_score, goal_id FROM tasks WHERE task_id = ?", (taskid,)
+        ).fetchone()
+        task_data = {"impetus": 0, "difficulty_score": 0, "goal_difficulty": ""}
+        if fetch_data is None:
+            return None
+        task_data["impetus"] = fetch_data[0]
+        task_data["difficulty_score"] = fetch_data[1]
+        goal_id = fetch_data[2]
+        
+        # Get difficulty of the overarching goal for this task
+        goal_diff = self._run_param("SELECT difficulty FROM goals WHERE id = ?", (goal_id,)
+        ).fetchone()
+        if goal_diff:
+            task_data["goal_difficulty"] = goal_diff[0]
+        return task_data
+    
+    def update_user_glicko(self, user_id: int, rating: int, RD: float, volatility: float):
+        self._run_param(
+            "UPDATE users SET rating = ?, deviation = ?, volatility = ? WHERE id = ?",
+            (rating, RD, volatility, user_id),
+        )
+        self._commit()
+    
+    def get_glicko_rating(self, user_id: str) -> int:
+        fetch_data = self._run_param(
+            "SELECT rating FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not fetch_data:
+            return 1500
+        return fetch_data[0]
 
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.
