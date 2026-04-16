@@ -1,7 +1,10 @@
 import sqlite3 as sql
 import json
 import os
+import logging
 from datetime import date, timedelta
+
+logger = logging.getLogger(__name__)
 
 _ALL_DAYS = [
     "monday",
@@ -180,17 +183,42 @@ class Database:
 
         # if a schedule already exists for this week, subtract the number from total
         today = date.today().isoformat()
+        logger.info(
+            "📅 Assigning weekly tasks for user=%s week_start=%s",
+            user_id,
+            this_sunday,
+        )
 
         # Load the user's availability — a dict of full day name → hours, e.g. {"monday": 3, "wednesday": 2}
         row = self._run_param(
             "SELECT week_availability FROM users WHERE username = ?", (user_id,)
         ).fetchone()
-        if not row or not row[0]:
+        if not row:
+            logger.warning(
+                "📅 Weekly task assignment skipped: no user row for username=%s",
+                user_id,
+            )
+            return {}
+        if not row[0]:
+            logger.warning(
+                "📅 Weekly task assignment skipped for user=%s: week_availability is empty",
+                user_id,
+            )
             return {}
         avail = json.loads(row[0])
         avail_days = [k for k in avail if k in _ALL_DAYS]  # ordered available days
         if not avail_days:
+            logger.warning(
+                "📅 Weekly task assignment skipped for user=%s: no valid availability days in %s",
+                user_id,
+                avail,
+            )
             return {}
+        logger.info(
+            "📅 Weekly availability for user=%s: %s",
+            user_id,
+            ",".join(avail_days),
+        )
 
         # If a schedule already exists for THIS same week (e.g. create_goal
         # triggered a mid-week rebuild), tally how many instances each goal
@@ -238,6 +266,12 @@ class Database:
         """,
             (user_id, today, today),
         ).fetchall()
+        logger.info(
+            "📅 Found %d active task(s) for user=%s on %s",
+            len(tasks),
+            user_id,
+            today,
+        )
 
         # Start with empty buckets for every day of the week
         buckets = {day: [] for day in _ALL_DAYS}
@@ -253,6 +287,13 @@ class Database:
             else:
                 eligible_days = avail_days
             if not eligible_days:
+                logger.info(
+                    "📅 Skipping task_id=%s for user=%s: no overlap between availability=%s and goal_days=%s",
+                    task_id,
+                    user_id,
+                    avail_days,
+                    goal_days_of_week,
+                )
                 continue
             n = len(eligible_days)
             freq = min(freq, n)  # can't schedule more times than eligible days
@@ -279,6 +320,12 @@ class Database:
             (json.dumps(schedule), user_id),
         )
         self._commit()
+        scheduled_count = sum(len(schedule[day]) for day in _ALL_DAYS)
+        logger.info(
+            "📅 Weekly task assignment saved for user=%s: %d scheduled task instance(s)",
+            user_id,
+            scheduled_count,
+        )
 
         # Apply per-goal all_tasks deltas. For a same-week rebuild, prev_all_counts
         # holds what was already counted, so the delta is the difference. For a new
