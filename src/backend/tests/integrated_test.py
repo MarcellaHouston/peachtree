@@ -61,10 +61,12 @@ class _FakeLLMClient:
         pass
 
     def query(self, *args, **kwargs):
-        if self.use_case in (
-            self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
-            self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
-        ):
+        if self.use_case == self.UseCase.GENERATE_WEEKLY_SUGGESTIONS:
+            return {
+                **self._FAKE_SUGGESTIONS,
+                "weekly_summary": "You completed some tasks and have room to improve consistency.",
+            }, True, 0
+        if self.use_case == self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
             return self._FAKE_SUGGESTIONS, True, 0
         if self.use_case == self.UseCase.EXTRACT_SEMANTICS:
             return "user wants to run more often", True, 0
@@ -1232,6 +1234,7 @@ class TestWeeklyRecap(IntegrationTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
+        self.assertIn("weekly_summary", data)
         self.assertIn("changes_summary", data)
         self.assertEqual(data["stats"], {"completed": 1, "total": 2})
 
