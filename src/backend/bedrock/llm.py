@@ -131,7 +131,7 @@ class LLMClient:
     def __init__(
         self,
         use_case: UseCase,
-        max_tokens=4096,
+        max_tokens=8192,
         user_id: str = "Reach staff",
     ):
         self.files = {
@@ -171,7 +171,7 @@ class LLMClient:
                     "start_date",
                     "end_date",
                     "impetus",
-                    "difficulty_score"
+                    "difficulty_score",
                 ]
             case self.UseCase.GENERATE_TALKING_POINTS:
                 file_path = prompts / self.files[self.UseCase.GENERATE_TALKING_POINTS]
@@ -206,7 +206,7 @@ class LLMClient:
             case self.UseCase.EXTRACT_SEMANTICS:
                 file_path = prompts / self.files[self.UseCase.EXTRACT_SEMANTICS]
                 self.rag = False
-                self.schema = []
+                self.schema = ["semantic", "summary"]
             case self.UseCase.EXTRACT_GOAL_CONTENT:
                 file_path = prompts / self.files[self.UseCase.EXTRACT_GOAL_CONTENT]
                 self.rag = False
@@ -276,6 +276,7 @@ class LLMClient:
                 self.UseCase.GENERATE_WEEKLY_SUGGESTIONS,
                 self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS,
                 self.UseCase.EXTRACT_GOAL_CONTENT,
+                self.UseCase.EXTRACT_SEMANTICS,
             ]:
                 try:
                     json_response = loads(response)
@@ -644,7 +645,60 @@ class LLMClient:
                         )
 
                 case self.UseCase.EXTRACT_SEMANTICS:
-                    output = response
+                    output = json_response
+
+                    missing_keys = []
+                    for key in self.schema:
+                        if key not in json_response:
+                            print(f"Response missing key '{key}'.")
+                            missing_keys.append(key)
+                            valid = False
+
+                    if missing_keys:
+                        self.model.previous_conversation.append(
+                            "Error: The previous response was invalid because it was missing the following keys: "
+                            + ", ".join(missing_keys)
+                            + ". Please provide a new response that includes these keys."
+                        )
+                        continue
+
+                    unexpected_keys = set(json_response.keys()) - set(self.schema)
+                    if unexpected_keys:
+                        print(
+                            f"Unexpected keys: {unexpected_keys}. Only allowed keys are: {set(self.schema)}"
+                        )
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had unexpected keys. Please provide a new response with only these allowed keys: semantic, summary."
+                        )
+                        continue
+
+                    if not isinstance(json_response["semantic"], str):
+                        print("Invalid semantic value: semantic must be a string.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid semantic value. Please provide semantic as a string."
+                        )
+                        continue
+                    if not isinstance(json_response["summary"], str):
+                        print("Invalid summary value: summary must be a string.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid summary value. Please provide summary as a string."
+                        )
+                        continue
+                    if not json_response["semantic"].strip():
+                        print("Invalid semantic value: semantic cannot be empty.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid semantic value. Please provide a non-empty semantic string."
+                        )
+                    if not json_response["summary"].strip():
+                        print("Invalid summary value: summary cannot be empty.")
+                        valid = False
+                        self.model.previous_conversation.append(
+                            "Error: The previous response had an invalid summary value. Please provide a non-empty summary string."
+                        )
 
                 case self.UseCase.EXTRACT_GOAL_CONTENT:
                     output = json_response

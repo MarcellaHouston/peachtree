@@ -70,7 +70,10 @@ class _FakeLLMClient:
         if self.use_case == self.UseCase.GENERATE_GUIDANCE_SUGGESTIONS:
             return self._FAKE_SUGGESTIONS, True, 0
         if self.use_case == self.UseCase.EXTRACT_SEMANTICS:
-            return "user wants to run more often", True, 0
+            return {
+                "semantic": "user wants to run more often",
+                "summary": "You want to run more often.",
+            }, True, 0
         if self.use_case == self.UseCase.EXTRACT_GOAL_CONTENT:
             return {"name": "Run a marathon", "end_date": "2027-06-01", "days_of_week": "monday,wednesday,friday"}, True, 0
         return [], True, 0
@@ -1328,6 +1331,7 @@ class TestGoalGuidance(IntegrationTestCase):
         data = resp.get_json()
         self.assertIn("suggested_changes", data)
         self.assertIn("changes_summary", data)
+        self.assertEqual(data["user_summary"], "You want to run more often.")
 
     def test_missing_goal_id_header(self):
         resp = self.client.post(

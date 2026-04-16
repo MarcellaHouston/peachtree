@@ -789,11 +789,13 @@ def get_goal_guidance():
         f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
     ]
     extract_model.context("User's Daily Tasks:\n" + " ".join(daily_tasks))
-    semantics, semantics_valid, _ = extract_model.query(content=transcription)
-    logger.info("goal_guidance extract_semantics LLM output: %s", semantics)
+    semantics_payload, semantics_valid, _ = extract_model.query(content=transcription)
+    logger.info("goal_guidance extract_semantics LLM output: %s", semantics_payload)
 
     if not semantics_valid:
         return jsonify({"error": "Failed to extract semantics"}), 500
+    semantics = semantics_payload["semantic"]
+    user_summary = semantics_payload["summary"]
 
     # Step 2: Fetch goal info and tasks for context
     goal_id = int(goal_id)
@@ -850,6 +852,7 @@ def get_goal_guidance():
     if not valid:
         return jsonify({"error": "Failed to generate guidance suggestions"}), 500
 
+    suggestions["user_summary"] = user_summary
     return jsonify(suggestions)
 
 
