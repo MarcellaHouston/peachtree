@@ -13,6 +13,7 @@ struct GuidancePopupView: View {
     //from Audiomanager.swift
     @State private var audioManager = AudioManager()
     
+    //@Binding var showEditMenu: Bool
     @Binding var isShowing: Bool
     var editMode: Bool
     var goalId: Int?

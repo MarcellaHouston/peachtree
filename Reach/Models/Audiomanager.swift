@@ -146,13 +146,13 @@ class AudioManager: NSObject {
                                 //can clear other fields if needed but they should all clear once we start recording anyway
                                 }
                             // if it isnt NLP (this logic can be edited to accomodate gg)
-                            
+                            /*
                             else
                             {
                                 self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
                                 self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                                 
-                            }
+                            }*/
 
                             // EOD Check In
                             self.transcription = "\(json["transcription"] ?? "No transcription available.")"
