@@ -384,8 +384,8 @@ final class ApiCall {
 
         do {
             let _: Empty = try await sendRequest("POST", body, "receive_suggestions")
-            weeklyRecapSuggestions = []
-            selectedWeeklyRecapSuggestions = []
+            //weeklyRecapSuggestions = []
+            //selectedWeeklyRecapSuggestions = []
             return true
         } catch {
             print("receive_suggestions ERROR:")

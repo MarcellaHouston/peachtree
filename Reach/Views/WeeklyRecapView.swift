@@ -111,19 +111,19 @@ struct WeeklyRecapView: View {
         
         // weekly recap auto fetch start
         .task {
-            print("=== WEEKLY RECAP CALL START ===")
+//            print("=== WEEKLY RECAP CALL START ===")
             
             isLoadingRecap = true
 
             await ApiCall.shared.refreshGoals()
 
             if let recap = await ApiCall.shared.fetchWeeklyRecap() {
-                print("weekly summary:", recap.weeklySummary)
-                print("changes title:", recap.changesTitle)
-                print("changes summary:", recap.changesSummary)
-                print("weekly suggestions:", recap.suggestions)
-                print("weekly stats completed:", recap.completed)
-                print("weekly stats total:", recap.total)
+//                print("weekly summary:", recap.weeklySummary)
+//                print("changes title:", recap.changesTitle)
+//                print("changes summary:", recap.changesSummary)
+//                print("weekly suggestions:", recap.suggestions)
+//                print("weekly stats completed:", recap.completed)
+//                print("weekly stats total:", recap.total)
 
                 summaryText = recap.weeklySummary
                 suggestionTitle = recap.changesTitle
@@ -131,18 +131,18 @@ struct WeeklyRecapView: View {
                 completedTaskCount = recap.completed
                 totalTaskCount = recap.total
             } else {
-                print("weekly recap returned no recommendations")
-
-                summaryText = "No recommendations this week"
-                suggestionTitle = "No changes needed"
-                suggestionText = "You're all caught up"
-                completedTaskCount = 0
-                totalTaskCount = 0
+//                print("weekly recap returned no recommendations")
+//
+//                summaryText = "No recommendations this week"
+//                suggestionTitle = "No changes needed"
+//                suggestionText = "You're all caught up"
+//                completedTaskCount = 0
+//                totalTaskCount = 0
             }
 
             isLoadingRecap = false
 
-            print("=== WEEKLY RECAP CALL END ===")
+//            print("=== WEEKLY RECAP CALL END ===")
         }
         // weekly recap auto fetch end
     }

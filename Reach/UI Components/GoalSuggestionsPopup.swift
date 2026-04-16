@@ -39,11 +39,11 @@ struct GoalSuggestionsPopup : View {
                 .buttonStyle(PurpleButtonStyle(active: false))
                 Button("Save Changes") {
                     Task {
+                        isShowing = false
                         let didSave = await ApiCall.shared.receiveSuggestions(ApiCall.shared.selectedRecapSuggestions())
                         if didSave {
                             await ApiCall.shared.refreshGoals()
                             _ = await ApiCall.shared.refreshTasks()
-                            isShowing = false
                         }
                     }
                 }
