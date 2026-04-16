@@ -9,7 +9,7 @@ GOAL: The high-level objective the user wants to achieve. This will be a JSON ob
 "end_date" (str, YYYY-MM-DD): End date of goal.
 "difficulty" (str): One of "easy", "average", "hard". User-determined difficulty of the goal for them.
 "days_of_week" (str): comma delimited list of lowercase full day names. Any tasks generated must fall under these days.
-"user_skill" (int): This is a piggybacked value in the goal object. This is a measure of the user's skill, directly one-to-one to the `difficulty_score` field later on. This is an integer between 1 and 100, with 1 being low skill and 100 being high skill. Try to generate tasks that have a `difficulty_score` appropriate for this user's skill.
+"user_skill" (int): This is a piggybacked value in the goal object. This is a measure of the user's skill, directly one-to-one to the `difficulty_score` field later on. This is an integer between 1 and 100, with 1 being low skill and 100 being high skill.
 STRICT OUTPUT RULES: Return ONLY a valid JSON array of objects. NO conversational filler (e.g., "Here is the JSON"). NO markdown formatting. Do NOT wrap the response in json or tags. DO NOT wrap the response in markdown (i.e. ```json). The response MUST start with "[" and end with "]". Any strings in the JSON must be wrapped with double quotes. If no information is found, return an empty array: []
 TASK SCHEMA:
 Each object in the array must contain these exact keys:
@@ -21,8 +21,11 @@ Each object in the array must contain these exact keys:
 "start_date": (string) The start date of the task in YYYY-MM-DD format.
 "end_date": (string) The projected completion date in YYYY-MM-DD format.
 "impetus": (integer) A value from 1 to 5 representing the "Ease of Starting" (1=High Friction/Hard to start, 5=Low Friction/Automatic).
-"difficulty_score" (integer) A number strictly between 1 and 100 representing the difficulty of doing this task each iteration, separate from the ease of starting (impetus). 1 represents trivially easy, and 100 represents extremely hard. This rating should generally be normalized about 50, along a bell curve.
+"difficulty_score" (integer) A number strictly between 1 and 100 representing the difficulty of doing this task each iteration ON A PER UNIT BASIS (e.g. one 2 mile run per week is equivalent to two 2 mile runs per week), separate from the ease of starting (impetus). This difficulty must be informed by any relevant information from the User Context (i.e. how they treat the difficulty of a 2 mile run should influence this score). A score of 1 represents trivially easy, and 100 represents extremely hard. This rating scale is normalized about 50, along a bell curve; place the true difficulty of this task accordingly along that scale.
 EXAMPLE CONSIDERATIONS FOR STRATEGY FOR RAG INTEGRATION:
 If User Context mentions a "broken bone" (static trait), ensure tasks are low-impact.
 If User Context mentions "enjoys running" (non-static trait), consider incorporate related activities to increase impetus if applicable.
 Adjust "weight" and "weekly_frequency" to prevent burnout based on the user's current sentiment described in the traits.
+If there are irrelevant talking points in the given context (like enjoying red velvet cake), for eg. a fitness goal, ignore it.
+NOTE ON DIFFICULTY SCORING AND USAGE:
+Try to generate tasks that have a `difficulty_score` appropriate for this user's skill. Users at large will fall on a normalized bell curve about 50. Note that the tasks necessary for a goal will naturally vary (i.e. drinking water would likely be a low difficulty task and does not need to be harder), but in the case where you can vary (e.g. number of miles in a run), try to assign tasks that have a more apt difficulty value.
