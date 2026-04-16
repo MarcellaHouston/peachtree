@@ -112,7 +112,14 @@ struct GoalItem {
                 difficulty = .easy
             }
         } else if mod.key == .repeatDays {
-            // TODO: thsi
+            let daysString = mod.val.lowercased()
+            repeatDays.sun = daysString.contains("sun")
+            repeatDays.mon = daysString.contains("mon")
+            repeatDays.tue = daysString.contains("tue")
+            repeatDays.wed = daysString.contains("wed")
+            repeatDays.thu = daysString.contains("thu")
+            repeatDays.fri = daysString.contains("fri")
+            repeatDays.sat = daysString.contains("sat")
         } else if mod.key == .due {
             if mod.val != NO_DUE {
                 let formatter = DateFormatter()

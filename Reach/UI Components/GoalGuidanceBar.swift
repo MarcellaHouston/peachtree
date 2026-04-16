@@ -10,6 +10,7 @@ import SwiftUI
 struct GoalGuidanceBar: View {
     let prompt: String
     @State private var isPresenting = false
+    var goal: GoalItem
     
     var body: some View {
         HStack {
@@ -36,14 +37,7 @@ struct GoalGuidanceBar: View {
         }
         .fullScreenCover(isPresented: $isPresenting,
                                  onDismiss: didDismiss) {
-            let goal = GoalItemBuilder()
-                .title("Go to the gym 3 times a week.")
-                .category("Fitness")
-                .due(Date(timeIntervalSinceNow: 10000))
-                .mon().wed().fri()
-                .id(4)
-                .build()
-            GuidancePopupView(goal: ApiCall.shared.goals.last ?? goal,
+            GuidancePopupView(goal: goal,
                               isShowing: $isPresenting)
             .frame(maxWidth: .infinity,
                    maxHeight: .infinity)
@@ -60,5 +54,5 @@ struct GoalGuidanceBar: View {
 }
 
 #Preview {
-        GoalGuidanceBar(prompt: "this is a sample prompt. do you want a suggestion?")
+        GoalGuidanceBar(prompt: "this is a sample prompt. do you want a suggestion?", goal: GoalItem(title: "this is a sample goal"))
 }

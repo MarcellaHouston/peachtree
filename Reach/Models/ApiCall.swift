@@ -15,6 +15,8 @@ final class ApiCall {
     static let shared = ApiCall()
     private init() {}
 
+    // goal is being created
+    private(set) var isCreatingGoal: Bool = false
     private let serverUrl = "http://34.192.65.138"
     
     private(set) var goals = [GoalItem]()
@@ -35,6 +37,20 @@ final class ApiCall {
     private(set) var taskGoalNames: [Int:String] = [:]
     // Goal id -> index in goals that id is at
     private(set) var idToGoalInd: [Int:Int] = [:]
+    
+    func addMod(_ mod: GoalModification) {
+            // Remove any existing mod for this specific field first to avoid duplicates
+            removeMod(goalId: mod.id, key: mod.key)
+            self.goalMods.append(mod)
+            print("Added mod: \(mod)")
+        }
+
+    func removeMod(goalId: Int, key: GoalModification.Key) {
+        if let index = goalMods.firstIndex(where: { $0.id == goalId && $0.key == key }) {
+            self.goalMods.remove(at: index)
+            
+        }
+    }
     
     // Populate with fallback data
     func fallback() {
@@ -90,6 +106,7 @@ final class ApiCall {
         struct Res: Codable {
             let goals: [GoalSchema]
         }
+
         let body: [String: Any] = [
             "user_id": UserCreds.shared.getStringId() as Any
         ]
@@ -167,7 +184,8 @@ final class ApiCall {
         }
         await refreshGoals()
     }
-    func createGoal(goal: GoalItem) async {
+    func createGoal(goal: GoalItem) async -> Int? {
+        self.isCreatingGoal = true
         var goal = goal
         // randomly assign a negative number to avoid duplicate -1 id's
         if goal.id == -1 {
@@ -183,19 +201,22 @@ final class ApiCall {
         /*
         print("DEBUG: Created local goal with ID: \(goal.id)")
          */
-        
+        struct Res: Codable {
+            let goal_id: Int
+        }
         do {
-            let _: Empty = try await sendRequest("POST", body, "goals/create")
-            //to get real id
+            let res: Res = try await sendRequest("POST", body, "goals/create")
+            self.isCreatingGoal = false
+            await refreshGoals()
+            return res.goal_id
             
         } catch {
             print("createGoal ERROR:")
             print(error)
-            
+            return nil
         }
-        await refreshGoals()
-
     }
+    
     func snoozeGoal(goal: GoalItem) async {
         //goal id less than 0 means it hasn't been assigned one yet
         if goal.id < 0 {

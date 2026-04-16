@@ -23,6 +23,9 @@ class AudioManager: NSObject {
     var extractedName: String = ""
     var extractedEndDate: String = ""
     var extractedDays: String = ""
+    // Goal Guidance
+    var suggestedChanges: [[String: String]] = []
+    var changesSummary: String = ""
     
     //var for server ip address
     private let backendIP = "34.192.65.138"
@@ -117,9 +120,11 @@ class AudioManager: NSObject {
         // try to send the audio to the backedn
         do {
             let audioData = try Data(contentsOf: fileURL)
+            //print("DEBUG: Audio file size: \(audioData.count) bytes")
             request.httpBody = audioData
             
             URLSession.shared.dataTask(with: request) { data, response, error in
+                
                 self.isUploading = false // Direct update
                 
                 if let error = error {
@@ -141,13 +146,25 @@ class AudioManager: NSObject {
                                 //can clear other fields if needed but they should all clear once we start recording anyway
                                 }
                             // if it isnt NLP (this logic can be edited to accomodate gg)
-                            
+                            /*
                             else
                             {
                                 self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
                                 self.transcription = "\(json["transcription"] ?? "No transcription available.")"
                                 
-                            }
+                            }*/
+
+                            // EOD Check In
+                            self.transcription = "\(json["transcription"] ?? "No transcription available.")"
+                            // EOD Check In/Goal Guidance
+                            self.summary = "\(json["summary"] ?? json["user_summary"] ?? "No summary available.")"
+                            self.changesSummary = "\(json["changes_summary"] ?? "No summary available.")"
+                            print("DEBUG: Summary: \(self.summary)")
+                            // Goal Guidance
+                            //self.suggestedChanges = json["suggested_changes"] as? [String: Any] ?? [:]
+                            self.suggestedChanges = json["suggested_changes"] as? [[String: String]] ?? []
+                            print("DEBUG: Suggested changes: \(self.suggestedChanges)")
+                            // NLP
                             self.showReview = true
                         }
                     } catch {
@@ -172,6 +189,8 @@ class AudioManager: NSObject {
         
         // sending json
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(UserCreds.shared.getToken(), forHTTPHeaderField: "Authorization")
+        request.setValue(String(UserCreds.shared.getIntId() ?? -1), forHTTPHeaderField: "User-ID")
         
         // create data dictionary based on python variables
         let body: [String: Any] = [
@@ -218,7 +237,7 @@ enum AudioEndpoint {
         case .goalGuidance(let id):
             return UploadConfig(
                 url: baseUrl.appendingPathComponent("/goal_guidance"),
-                extraParameters: ["goal_id": id]
+                extraParameters: ["Goal-Id": id]
             )
         case .endOfDay:
             return UploadConfig(

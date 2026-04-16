@@ -79,7 +79,7 @@ struct GoalOptions: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 10)
                 } else {
-                    GoalGuidanceBar(prompt: "Thinking about adjusting this goal? Tap to receive goal guidance!")
+                    GoalGuidanceBar(prompt: "Thinking about adjusting this goal? Tap to receive goal guidance!", goal: goal)
                 }
                 
                 // Goal category spot

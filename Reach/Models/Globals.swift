@@ -32,4 +32,6 @@ final class AppState {
 
     //account popup state
     var showSignOutPopup: Bool = false
+    
+    
 }
