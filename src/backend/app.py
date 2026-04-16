@@ -124,6 +124,7 @@ def assign_weekly_tasks():
                 ]
             )
             print(f"ASSIGNED: {username} ({task_count} tasks)")
+            print(json.dumps(schedule, indent=2))
         except Exception as e:
             failures.append((username, e))
             print(f"FAILED: {username}\nREASON: {e}")
