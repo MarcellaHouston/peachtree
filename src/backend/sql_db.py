@@ -453,6 +453,14 @@ class Database:
             (rating, RD, volatility, user_id),
         )
         self._commit()
+    
+    def get_glicko_rating(self, user_id: str) -> int:
+        fetch_data = self._run_param(
+            "SELECT rating FROM users WHERE username = ?", (user_id,)
+        ).fetchone()
+        if not fetch_data:
+            return 1500
+        return fetch_data[0]
 
     def delete(self, table: str, id: int):
         # Remove a row by its id. Cascades to child rows where foreign keys are set up.

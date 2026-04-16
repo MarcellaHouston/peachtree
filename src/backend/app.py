@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, date
 import glicko
-import glicko_run
 from sql_db import Database
 from bedrock.llm import LLMClient
 import transcription.aws as aws
@@ -75,6 +74,29 @@ def check_auth(headers: dict) -> bool:
     token = db.get_user_token(int(user_id))
     logger.info("Auth OK")
     return auth == token
+
+
+# Helper function that converts user's Glicko rating to a value between 1-100
+def convert_glicko(user_id: str) -> int:
+    # Get user's Glicko rating from user db
+    user_rating = db.get_glicko_rating(user_id)
+    # Convert rating to an integer between 1 and 100
+    scaled_rating = int(user_rating / 31.5)
+    return max(1, min(100, scaled_rating))
+
+
+@app.cli.command("run-glicko")
+def run_glicko():
+    from glicko_run import daily_glicko_update
+
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"STARTING: Daily Glicko Update at {start_time}\n")
+    try:
+        daily_glicko_update()
+        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"SUCCESS: Daily Glicko Update at {end_time}")
+    except Exception as e:
+        print(f"FAILURE: Daily Glicko Update at {start_time}\nREASON: {e}")
 
 
 @app.route("/")
@@ -151,7 +173,6 @@ def signup():
         # Insert new user into database (id will auto-generate in .insert)
         db.insert(
             "users",
-<<<<<<< HEAD
             [
                 username,
                 hashed_password,
@@ -162,9 +183,6 @@ def signup():
                 '{}',
                 '{}'
             ],
-=======
-            [username, hashed_password, new_token, 1200, 350.0, "{}", "{}"],
->>>>>>> backend-staging
         )
         # Get id from new user (it's auto-generated when user is created)
         new_user_id = db.get_user_id(username)
@@ -311,6 +329,7 @@ def create_goal():
         "end_date": goal["end_date"],
         "difficulty": goal["difficulty"],
         "days_of_week": goal.get("days_of_week"),
+        "user_skill": convert_glicko(goal["user_id"]),
     }
 
     llm_model = LLMClient(LLMClient.UseCase.GENERATE_TASKS, user_id=goal["user_id"])

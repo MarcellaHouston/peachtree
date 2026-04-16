@@ -37,7 +37,6 @@ at 0.06.
 """
 
 
-from sql_db import Database
 import math
 
 
