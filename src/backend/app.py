@@ -490,12 +490,12 @@ def eod_summary():
     """Given a transcription from a user's STT, return a LLM-generated summary"""
     # Grab metadata from user
     logger.info("🚀 Reached the EOD Summary endpoint")
-    userid = request.headers.get("User-ID")
+    username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
 
     audio_file = request.data
-    if not userid:
-        return jsonify({"error": "Missing User-ID in header"}), 401
+    if not username:
+        return jsonify({"error": "Missing Username in header"}), 401
 
     # Check authentication
     if not check_auth(dict(request.headers)):
@@ -507,7 +507,7 @@ def eod_summary():
     if not audio_file:
         return jsonify({"error": "Missing Audio File"}), 403
     # Create temporary audio filename and path for transcription
-    temp_filename = f"temp_{userid}_{uuid.uuid4()}{file_type}"
+    temp_filename = f"temp_{username}_{uuid.uuid4()}{file_type}"
     temp_path = os.path.join("/tmp", temp_filename)
 
     # Transcribe the audio file
@@ -536,11 +536,11 @@ def eod_summary():
 
     # Setup LLM with eod_summary instructions
     llm_model = LLMClient(
-        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=userid
+        use_case=LLMClient.UseCase.SUMMARIZE_TRANSCRIPTION, user_id=username
     )
 
     # Get user's daily tasks
-    tasks = db.get_daily_tasks(userid)
+    tasks = db.get_daily_tasks(username)
 
     # Add daily tasks to the LLM's context
     daily_tasks = [
