@@ -20,19 +20,19 @@ struct GoalsView: View {
     
     //this keeps track of which goal is currently selected when user taps one
     @State private var selectedGoal: GoalItem? = nil
-
+    
     //controls whether the edit goal popup is visible
     @State private var showEditGoal = false
-
+    
     //controls whether the new goal popup is visible
     @State private var showNewGoal = false
-
+    
     //controls whether the guidance screen is open
     //will eventually connect to goal-specific goal guidance view
     @State private var showGuidance = false
-
+    
     @State private var currentMode: GoalsListMode = .edit
-
+    
     var body: some View {
         //outer container for header, content, nav
         VStack(spacing: 0) {
@@ -70,7 +70,7 @@ struct GoalsView: View {
                             GoalRow(
                                 goal: goal,
                                 iconSystemName: currentMode == .edit
-                                    ? "pencil" : "sparkles"
+                                ? "pencil" : "sparkles"
                             ) {
                                 selectedGoal = goal
                                 switch currentMode {
@@ -80,6 +80,12 @@ struct GoalsView: View {
                                     showGuidance = true
                                 }
                             }
+                            //so you can't edit/click a goal that doesnt have a real id yet (not on demo mode)
+                            .disabled(goal.id < 0 && !appState.isDemoMode && !appState.isDemoMode)
+                            
+                            //opacity changes a bit to signal a unclickable goal (not on demo)
+                            .opacity(goal.id < 0 && !appState.isDemoMode ? 0.5 : 1.0)
+                            
                         }
                     }
                     .padding(.horizontal, 28)
@@ -89,10 +95,10 @@ struct GoalsView: View {
                 Spacer(minLength: 0)
                 //plus button code
                 HStack {
-
+                    
                     //press to enter guidance mode, press again to go back to edit mode
                     Button {
-                       if(currentMode == .guidance)
+                        if(currentMode == .guidance)
                         {
                             currentMode = .edit
                         }
@@ -105,7 +111,7 @@ struct GoalsView: View {
                         Circle()
                             .fill(Color(red: 0.50, green: 0.37, blue: 0.77))
                             .frame(width: 58, height: 58)
-
+                        
                             .overlay {
                                 if(currentMode == .guidance)
                                 {
@@ -122,12 +128,12 @@ struct GoalsView: View {
                                         .foregroundColor(.white)
                                 }
                             }
-
+                        
                     }
-
+                    
                     Spacer()
                     if currentMode == .edit {
-
+                        
                         Button {
                             showNewGoal = true
                         } label: {
@@ -153,12 +159,12 @@ struct GoalsView: View {
                             Text("Thinking about adjusting a goal? Tap one to receive goal guidance!")
                         }
                     }
-
+                    
                 }
                 .padding(.horizontal, 34)
                 .padding(.bottom, 22)
             }
-
+            
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(red: 0.93, green: 0.93, blue: 0.93))
             //nav bar integration
@@ -173,21 +179,21 @@ struct GoalsView: View {
             if showEditGoal, let selectedGoal, currentMode == .edit {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
-
+                
                 EditGoalView(goal: selectedGoal, isShowing: $showEditGoal)
             }
             
             else if showGuidance, let selectedGoal, currentMode == .guidance {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
-
+                
                 GuidancePopupView(goal: selectedGoal, isShowing: $showGuidance)
             }
             
             else if showNewGoal {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
-
+                
                 NewGoalView(isShowing: $showNewGoal)
             }
         }
@@ -206,43 +212,51 @@ private struct GoalRow: View {
     let goal: GoalItem
     let iconSystemName: String
     let onTap: () -> Void
-
+    
+    //in order to access app state for demo mode goal rows
+    private let appState = AppState.shared
+    
     var body: some View {
         //horizontal row display of goal item and pencil as well as some padding
         Button(action: onTap) {
             HStack {
-
-                // left spacer to balance the pencil width
-                Spacer()
-                    .frame(width: 24)
+                //loading icon until the goal gets a real id but doesnt apply on demo
+                if goal.id < 0 && !appState.isDemoMode {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.leading, 8)
+                } else {
+                    Spacer()
+                        .frame(width: 24)
+                }
                 //title of each goal
                 Text(goal.title)
                     .font(.system(size: 15, weight: .regular))
                     .foregroundColor(.black)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .center)
-
+                
                 //iconSystem variable to switch between the pencil and sparkles icon depending on the mode (edit vs guidance)
                 Image(systemName: iconSystemName)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 24)
             }
-
+            
             .padding(.horizontal, 12)
             .frame(height: 46)
             .frame(maxWidth: .infinity)
             // make goal gray if it's paused
             .background(
                 goal.isPaused
-                    ? Color(red: 0.63, green: 0.63, blue: 0.63)
-                    : Color(red: 0.77, green: 0.69, blue: 0.94)
+                ? Color(red: 0.63, green: 0.63, blue: 0.63)
+                : Color(red: 0.77, green: 0.69, blue: 0.94)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .frame(height: 46)
-
+            
             .frame(maxWidth: .infinity)
-
+            
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)

@@ -142,7 +142,8 @@ final class ApiCall {
     
     // Informs backend of change and refreshes goals
     func updateGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Modifying goal should not have dummy id")
             return
         }
@@ -157,19 +158,37 @@ final class ApiCall {
         await refreshGoals()
     }
     func createGoal(goal: GoalItem) async {
+        var goal = goal
+        // randomly assign a negative number to avoid duplicate -1 id's
+        if goal.id == -1 {
+            goal.id = -Int.random(in: 1...1_000_000)
+        }
         let body: [String: Any] = goal.requestBody()
-        // Backend will ignore goalid
+        
+        //adding a goal locally so appears instantly
+        self.goals.append(goal)
+        
+        //updating dictionary to handle index shifts
+        self.idToGoalInd = [:]
+        /*
+        print("DEBUG: Created local goal with ID: \(goal.id)")
+         */
         
         do {
             let _: Empty = try await sendRequest("POST", body, "goals/create")
+            //to get real id
+            
         } catch {
             print("createGoal ERROR:")
             print(error)
+            
         }
         await refreshGoals()
+
     }
     func snoozeGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Snoozing goal should not have dummy id")
             return
         }
@@ -184,7 +203,8 @@ final class ApiCall {
         await refreshGoals()
     }
     func deleteGoal(goal: GoalItem) async {
-        if goal.id == -1 {
+        //goal id less than 0 means it hasn't been assigned one yet
+        if goal.id < 0 {
             print("Modifying goal should not have dummy id")
             return
         }
@@ -285,7 +305,15 @@ final class ApiCall {
         }
         
         //print(String(data: data, encoding: .utf8)!)
-        // TODO: Fix inconsequential bug of trying to decode an Empty data
+    
+        // Check if the server returned no data and empty response type
+        if data.isEmpty && T.self == Empty.self {
+            
+            // return a empty object instead of trying to decode bc it may crash
+            return Empty() as! T
+            
+        }
+     
         let decodedData = try JSONDecoder().decode(T.self, from: data)
         return decodedData
     }
