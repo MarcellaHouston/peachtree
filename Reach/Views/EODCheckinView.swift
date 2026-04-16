@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AVFoundation
 
 struct EODCheckinView: View {
     //removed AppState + onAccountTap using global state instead

@@ -181,6 +181,45 @@ struct GoalOptions: View {
                 }
             }
         }
+        
+        //to handle nlp data extracted
+        
+        .onChange(of: audioManager.extractedName) {
+                if !audioManager.extractedName.isEmpty {
+                    goal.title = audioManager.extractedName
+                }
+            }
+        .onChange(of: audioManager.extractedDays) {
+            if !audioManager.extractedDays.isEmpty {
+                let days = audioManager.extractedDays.lowercased()
+                goal.repeatDays.mon = days.contains("mon")
+                goal.repeatDays.tue = days.contains("tue")
+                goal.repeatDays.wed = days.contains("wed")
+                goal.repeatDays.thu = days.contains("thu")
+                goal.repeatDays.fri = days.contains("fri")
+                goal.repeatDays.sat = days.contains("sat")
+                goal.repeatDays.sun = days.contains("sun")
+            }
+        }
+        
+        .onChange(of: audioManager.extractedEndDate) {
+            if !audioManager.extractedEndDate.isEmpty {
+                //to convert string into date object
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                if let decodedDate = formatter.date(from: audioManager.extractedEndDate) {
+                    // change var to reflect our due date
+                    goal.due = decodedDate
+                    // Sync the UI DatePicker state
+                    newEndDate = decodedDate
+                } else {
+                    //wrong format?
+                    print("Failed to parse date: \(audioManager.extractedEndDate)")
+                }
+            }
+        }
+        
         .padding(.horizontal, 10)
         .padding(.top, 10)
         .padding(.bottom, 14)

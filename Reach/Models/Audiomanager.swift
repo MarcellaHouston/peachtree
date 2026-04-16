@@ -130,13 +130,18 @@ class AudioManager: NSObject {
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
                     do {
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                            //if its an NLP
-                            if let goal = json["goal"] as? [String: Any]{
-                                    self.extractedName = goal["name"] as? String ?? ""
-                                    self.extractedEndDate = goal["end_date"] as? String ?? ""
-                                    self.extractedDays = goal["days_of_week"] as? String ?? ""
+                            
+                            //if its NLP
+                            if let name = json["name"] as? String {
+                               
+                                    self.extractedName = name
+                                    self.extractedEndDate = json["end_date"] as? String ?? ""
+                                    self.extractedDays = json["days_of_week"] as? String ?? ""
+                                
+                                //can clear other fields if needed but they should all clear once we start recording anyway
                                 }
                             // if it isnt NLP (this logic can be edited to accomodate gg)
+                            
                             else
                             {
                                 self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
