@@ -9,8 +9,42 @@ import Foundation
 import AVFoundation
 import Observation
 
+struct UploadConfig {
+    let url: URL
+    let extraParameters: [String: Any]?
+}
+
+enum AudioEndpoint {
+    case goalGuidance(goalId: Int)
+    case endOfDay
+    case nlp(goalId: Int)
+
+    var config: UploadConfig {
+        let baseUrl = URL(string: "http://34.192.65.138:80")!
+        
+        switch self {
+        case .goalGuidance(let id):
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/goal_guidance"),
+                extraParameters: ["goal_id": id]
+            )
+        case .endOfDay:
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/stt/eod_summary"),
+                extraParameters: nil
+            )
+        case .nlp(let id):
+            return UploadConfig(
+                url: baseUrl.appendingPathComponent("/extract_goal"),
+                extraParameters: ["goal_id": id]
+            )
+        }
+    }
+}
+
 @Observable
 class AudioManager: NSObject {
+    // common variables
     var audioRecorder: AVAudioRecorder?
     var isRecording = false
     var summary: String = ""
@@ -89,7 +123,7 @@ private func uploadAudio(fileURL: URL) {
         request.httpMethod = "POST"
         request.timeoutInterval = 240
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        
+        request.setValue(UserCreds.shared.getToken(), forHTTPHeaderField: "Authorization")
         request.setValue(UserCreds.shared.getStringId(), forHTTPHeaderField: "User-ID")
         request.setValue(".m4a", forHTTPHeaderField: "File-Type")
         
