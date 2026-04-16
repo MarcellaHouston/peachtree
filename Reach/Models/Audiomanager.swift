@@ -19,6 +19,11 @@ class AudioManager: NSObject {
     var showReview = false
     var isUploading = false
     
+    //nlp vars
+    var extractedName: String = ""
+    var extractedEndDate: String = ""
+    var extractedDays: String = ""
+    
     //var for server ip address
     private let backendIP = "34.192.65.138"
     
@@ -33,10 +38,15 @@ class AudioManager: NSObject {
     
     //recording function
     private func startRecording() {
-        let session = AVAudioSession.sharedInstance()
-        //to account for older ios versions
+        //delete variables so nothing carries over to dif audio functions 
+            self.summary = ""
+            self.transcription = ""
+            self.extractedName = ""
+            self.extractedEndDate = ""
+            self.extractedDays = ""
         
-        //removed call for "requestRecordPermission
+        let session = AVAudioSession.sharedInstance()
+        
         do {
             try session.setCategory(.playAndRecord, mode: .default)
             try session.setActive(true)
@@ -120,9 +130,19 @@ class AudioManager: NSObject {
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let data = data {
                     do {
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                            // TODO: add other results for guidance and NLP
-                            self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
-                            self.transcription = "\(json["transcription"] ?? "No transcription available.")"
+                            //if its an NLP
+                            if let goal = json["goal"] as? [String: Any]{
+                                    self.extractedName = goal["name"] as? String ?? ""
+                                    self.extractedEndDate = goal["end_date"] as? String ?? ""
+                                    self.extractedDays = goal["days_of_week"] as? String ?? ""
+                                }
+                            // if it isnt NLP (this logic can be edited to accomodate gg)
+                            else
+                            {
+                                self.summary = "\(json["summary"] ?? json["changes_summary"] ?? "No summary available.")"
+                                self.transcription = "\(json["transcription"] ?? "No transcription available.")"
+                                
+                            }
                             self.showReview = true
                         }
                     } catch {
