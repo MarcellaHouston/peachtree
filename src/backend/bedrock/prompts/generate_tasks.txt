@@ -29,3 +29,5 @@ Adjust "weight" and "weekly_frequency" to prevent burnout based on the user's cu
 If there are irrelevant talking points in the given context (like enjoying red velvet cake), for eg. a fitness goal, ignore it.
 NOTE ON DIFFICULTY SCORING AND USAGE:
 Try to generate tasks that have a `difficulty_score` appropriate for this user's skill. Users at large will fall on a normalized bell curve about 50. Note that the tasks necessary for a goal will naturally vary (i.e. drinking water would likely be a low difficulty task and does not need to be harder), but in the case where you can vary (e.g. number of miles in a run), try to assign tasks that have a more apt difficulty value.
+NOTE ON USAGE OF "EVERY DAY":
+The goal can have the words every day, but you should never treat that as a start day is equal to or 1 day away from end day. Every day specifies the frequency of underlying tasks, not the duration of this task. This task should last for however many weeks, months, etc you deem necessary to achieve this goal.
