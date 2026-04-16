@@ -185,6 +185,10 @@ def get_goals():
     if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id in request"}), 400
+
     start_date = parse_date(data.get("start_date"))
     end_date = parse_date(data.get("end_date"))
 
@@ -195,6 +199,10 @@ def get_goals():
     rows = db.select("goals", "all")
     results = []
     for row in rows:
+        # Only return goals belonging to the requesting user
+        if row[6] != user_id:
+            continue
+
         active_date = row[7]
         goal = {
             "id": row[0],
@@ -231,13 +239,8 @@ def get_goals():
 
         results.append(goal)
 
-    response = {"goals": results}
-
-    user_id = data.get("user_id")
-    if user_id:
-        new_week, schedule = db.check_new_week(user_id)
-        response["new_week"] = new_week
-        response["schedule"] = schedule
+    new_week, schedule = db.check_new_week(user_id)
+    response = {"goals": results, "new_week": new_week, "schedule": schedule}
 
     return jsonify(response)
 
@@ -504,14 +507,21 @@ def receive_suggestions():
     ALLOWED_FIELDS = {"name", "end_date", "difficulty", "days_of_week"}
     VALID_DIFFICULTIES = {"easy", "average", "hard"}
 
-    user_id = request.headers.get("User-ID")
-    if not user_id:
+    if not request.headers.get("User-ID"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
     if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
 
-    accepted_changes = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Expected JSON object body"}), 400
+
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id in request"}), 400
+
+    accepted_changes = data.get("changes")
     if not isinstance(accepted_changes, list) or not accepted_changes:
         return jsonify({"error": "Expected a non-empty list of changes"}), 400
 
@@ -536,12 +546,16 @@ def receive_suggestions():
 
 @app.route("/weekly_recap", methods=["GET"])
 def get_weekly_recap_suggestions():
-    user_id = request.headers.get("User-ID")
-    if not user_id:
+    if not request.headers.get("User-ID"):
         return jsonify({"error": "Missing User-ID in header"}), 401
 
     if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id in request"}), 400
 
     # Read the old week's schedule before any reassignment happens
     schedule = db.get_week_schedule(user_id)
@@ -606,11 +620,14 @@ def get_weekly_recap_suggestions():
 @app.route("/goal_guidance", methods=["POST"])
 def get_goal_guidance():
     user_id = request.headers.get("User-ID")
+    username = request.headers.get("Username")
     goal_id = request.headers.get("Goal-ID")
     file_type = request.headers.get("File-Type", ".m4a")
 
     if not user_id:
         return jsonify({"error": "Missing User-ID in header"}), 401
+    if not username:
+        return jsonify({"error": "Missing Username in header"}), 401
     if not goal_id:
         return jsonify({"error": "Missing Goal-ID in header"}), 400
 
@@ -645,13 +662,13 @@ def get_goal_guidance():
 
     # Step 1: Extract semantics from transcription
     extract_model = LLMClient(
-        use_case=LLMClient.UseCase.EXTRACT_SEMANTICS, user_id=user_id
+        use_case=LLMClient.UseCase.EXTRACT_SEMANTICS, user_id=username
     )
-    tasks = db.get_daily_tasks(user_id)
+    tasks = db.get_daily_tasks(username)
     daily_tasks = [
         f"Task: {t['task']}, Overarching Goal: {t['goal_name']}.\n" for t in tasks
     ]
-    extract_model.context("Today's Tasks:\n" + " ".join(daily_tasks))
+    extract_model.context("User's Daily Tasks:\n" + " ".join(daily_tasks))
     semantics, semantics_valid, _ = extract_model.query(content=transcription)
     logger.info("goal_guidance extract_semantics LLM output: %s", semantics)
 
@@ -663,7 +680,7 @@ def get_goal_guidance():
     rows = db.select("goals", "all")
     goal = None
     for row in rows:
-        if row[0] == goal_id and row[6] == user_id:
+        if row[0] == goal_id and row[6] == username:
             goal = {
                 "id": row[0],
                 "name": row[1],
@@ -684,7 +701,7 @@ def get_goal_guidance():
 
     # Step 3: Generate guidance suggestions with RAG
     guidance_model = LLMClient(
-        use_case=LLMClient.UseCase.GENERATE_GUIDANCE_SUGGESTIONS, user_id=user_id
+        use_case=LLMClient.UseCase.GENERATE_GUIDANCE_SUGGESTIONS, user_id=username
     )
     guidance_model.context(
         f"Goal: {goal['name']}\n"
@@ -711,10 +728,13 @@ def get_goal_guidance():
 @app.route("/extract_goal", methods=["POST"])
 def extract_goal():
     user_id = request.headers.get("User-ID")
+    username = request.headers.get("Username")
     file_type = request.headers.get("File-Type", ".m4a")
 
     if not user_id:
         return jsonify({"error": "Missing User-ID in header"}), 401
+    if not username:
+        return jsonify({"error": "Missing Username in header"}), 401
 
     if not check_auth(dict(request.headers)):
         return jsonify({"error": "User isn't authenticated"}), 401
@@ -746,7 +766,7 @@ def extract_goal():
         return jsonify({"error": "Transcription failed"}), 400
 
     llm = LLMClient(
-        use_case=LLMClient.UseCase.EXTRACT_GOAL_CONTENT, user_id=user_id
+        use_case=LLMClient.UseCase.EXTRACT_GOAL_CONTENT, user_id=username
     )
     result, valid, _ = llm.query(content=transcription)
     logger.info("extract_goal LLM output: %s", result)

@@ -203,7 +203,7 @@ class TestCreateGoalIntegration(IntegrationTestCase):
 class TestGetGoalsIntegration(IntegrationTestCase):
     def test_get_goals_empty_db(self):
         # With nothing in the DB the endpoint should return an empty list
-        body = self.post_json("/goals", {}).get_json()
+        body = self.post_json("/goals", {"user_id": "alice"}).get_json()
         self.assertEqual(body["goals"], [])
 
     def test_get_goals_returns_inserted_goal(self):
@@ -214,6 +214,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
         body = self.post_json(
             "/goals",
             {
+                "user_id": "alice",
                 "start_date": date.today().isoformat(),
                 "end_date": "2027-12-31",
             },
@@ -225,7 +226,9 @@ class TestGetGoalsIntegration(IntegrationTestCase):
         # A goal whose end_date is before the filter's start_date should be excluded.
         # This confirms the real date-filtering logic works end-to-end, not just in isolation.
         self.create_goal(start_date="2020-01-01", end_date="2020-12-31")
-        body = self.post_json("/goals", {"start_date": "2025-01-01"}).get_json()
+        body = self.post_json(
+            "/goals", {"user_id": "alice", "start_date": "2025-01-01"}
+        ).get_json()
         self.assertEqual(body["goals"], [])
 
     def test_get_goals_returns_multiple(self):
@@ -239,6 +242,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
         body = self.post_json(
             "/goals",
             {
+                "user_id": "alice",
                 "start_date": date.today().isoformat(),
                 "end_date": "2027-12-31",
             },
@@ -253,6 +257,7 @@ class TestGetGoalsIntegration(IntegrationTestCase):
         body = self.post_json(
             "/goals",
             {
+                "user_id": "alice",
                 "start_date": date.today().isoformat(),
                 "end_date": "2027-12-31",
             },
@@ -285,21 +290,35 @@ class TestGetGoalsIntegration(IntegrationTestCase):
         self.assertIn("schedule", body)
         self.assertIn("goals", body)
 
-    def test_get_goals_without_user_id_omits_schedule(self):
-        body = self.post_json("/goals", {}).get_json()
-        self.assertNotIn("new_week", body)
-        self.assertNotIn("schedule", body)
+    def test_get_goals_missing_user_id(self):
+        # user_id is now required — endpoint 400s without it
+        resp = self.post_json("/goals", {})
+        self.assertEqual(resp.status_code, 400)
 
     def test_is_paused_false_for_active_goal(self):
         self.create_goal(start_date=date.today().isoformat())
-        body = self.post_json("/goals", {"start_date": date.today().isoformat(), "end_date": "2027-12-31"}).get_json()
+        body = self.post_json(
+            "/goals",
+            {
+                "user_id": "alice",
+                "start_date": date.today().isoformat(),
+                "end_date": "2027-12-31",
+            },
+        ).get_json()
         self.assertFalse(body["goals"][0]["isPaused"])
 
     def test_is_paused_true_after_snooze(self):
         self.create_goal(start_date=date.today().isoformat(), end_date="2027-12-31")
         goal_id = self.real_db.select("goals", "all")[0][0]
         self.post_json("/goals/snooze", {"user_id": "alice", "id": goal_id, "weeks": 4})
-        body = self.post_json("/goals", {"start_date": date.today().isoformat(), "end_date": "2027-12-31"}).get_json()
+        body = self.post_json(
+            "/goals",
+            {
+                "user_id": "alice",
+                "start_date": date.today().isoformat(),
+                "end_date": "2027-12-31",
+            },
+        ).get_json()
         self.assertTrue(body["goals"][0]["isPaused"])
 
 
@@ -833,7 +852,7 @@ class TestGoalCompletion(IntegrationTestCase):
         # A freshly created goal (with the fake LLM yielding no tasks) should
         # have a completion object with zero counters and zero percent.
         self.create_goal()
-        body = self.post_json("/goals", {}).get_json()
+        body = self.post_json("/goals", {"user_id": "alice"}).get_json()
         self.assertEqual(
             body["goals"][0]["completion"],
             {"completed_tasks": 0, "all_tasks": 0, "percent_completed": 0},
@@ -1061,7 +1080,7 @@ class TestReceiveSuggestions(IntegrationTestCase):
     def _post_suggestions(self, changes, user_id="alice"):
         return self.client.post(
             "/receive_suggestions",
-            data=json.dumps(changes),
+            data=json.dumps({"user_id": user_id, "changes": changes}),
             content_type="application/json",
             headers={"Authorization": "test-token", "User-ID": user_id},
         )
@@ -1168,6 +1187,8 @@ class TestWeeklyRecap(IntegrationTestCase):
     def _get_recap(self, user_id="alice"):
         return self.client.get(
             "/weekly_recap",
+            data=json.dumps({"user_id": user_id}),
+            content_type="application/json",
             headers={"Authorization": "test-token", "User-ID": user_id},
         )
 
@@ -1258,6 +1279,7 @@ class TestGoalGuidance(IntegrationTestCase):
         headers = {
             "Authorization": "test-token",
             "User-ID": user_id,
+            "Username": user_id,
             "Goal-ID": str(goal_id),
             "File-Type": ".wav",
         }
@@ -1284,7 +1306,11 @@ class TestGoalGuidance(IntegrationTestCase):
         resp = self.client.post(
             "/goal_guidance",
             data=b"fake-audio",
-            headers={"Authorization": "test-token", "User-ID": "alice"},
+            headers={
+                "Authorization": "test-token",
+                "User-ID": "alice",
+                "Username": "alice",
+            },
         )
         self.assertEqual(resp.status_code, 400)
 
@@ -1327,6 +1353,7 @@ class TestExtractGoal(IntegrationTestCase):
         headers = {
             "Authorization": "test-token",
             "User-ID": user_id,
+            "Username": user_id,
             "File-Type": ".wav",
         }
         return self.client.post(

@@ -261,6 +261,22 @@ class LLMClient:
                     )
                     continue
 
+            if self.use_case in [
+                self.UseCase.EXTRACT_GOAL_CONTENT,
+            ]:
+                try:
+                    json_response = loads(response)
+                    assert isinstance(json_response, dict)
+                except Exception as e:
+                    print(
+                        f"Failed to parse response as JSON dict: {str(e)}. Response was: {response}"
+                    )
+                    valid = False
+                    self.model.previous_conversation.append(
+                        "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object with only these allowed keys: name, end_date, days_of_week."
+                    )
+                    continue
+
             # output validation based on use case
             match self.use_case:
                 case self.UseCase.SUMMARIZE_TRANSCRIPTION:
@@ -542,19 +558,6 @@ class LLMClient:
                     output = response
 
                 case self.UseCase.EXTRACT_GOAL_CONTENT:
-                    try:
-                        json_response = loads(response)
-                        assert isinstance(json_response, dict)
-                    except Exception as e:
-                        print(
-                            f"Failed to parse response as JSON dict: {str(e)}. Response was: {response}"
-                        )
-                        valid = False
-                        self.model.previous_conversation.append(
-                            "Error: The previous response was not a valid JSON object. Please provide a new response that is a valid JSON object with only these allowed keys: name, end_date, days_of_week."
-                        )
-                        continue
-
                     output = json_response
 
                     # Validate no unexpected keys
