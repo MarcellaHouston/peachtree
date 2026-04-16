@@ -619,6 +619,7 @@ def receive_suggestions():
     accepted_changes = data.get("changes")
     if not isinstance(accepted_changes, list) or not accepted_changes:
         return jsonify({"error": "Expected a non-empty list of changes"}), 400
+    logger.info("📥 Received suggestions for user=%s: %s", user_id, accepted_changes)
 
     for change in accepted_changes:
         change.pop("summary", None)
