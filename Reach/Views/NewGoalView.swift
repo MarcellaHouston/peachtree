@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 struct NewGoalView: View {
     @State private var goal = GoalItem()
@@ -15,6 +16,9 @@ struct NewGoalView: View {
     @State private var newCategory = ""
     @State private var showingCategoryField = false
     @State private var showGuidance = false
+    
+    //from Audiomanager.swift
+    @State private var audioManager = AudioManager()
     
     @Binding var isShowing: Bool    
     
