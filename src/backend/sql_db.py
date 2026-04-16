@@ -444,11 +444,12 @@ class Database:
         user_data["User-ID"] = fetch_data[0]
         user_data["password"] = fetch_data[1]
         return user_data
-    
+
     def get_glicko_task_data(self, taskid: int) -> dict:
         # Get data needed for Glicko algorithm from a task and its overarching goal
         fetch_data = self._run_param(
-            "SELECT impetus, difficulty_score, goal_id FROM tasks WHERE task_id = ?", (taskid,)
+            "SELECT impetus, difficulty_score, goal_id FROM tasks WHERE task_id = ?",
+            (taskid,),
         ).fetchone()
         task_data = {"impetus": 0, "difficulty_score": 0, "goal_difficulty": ""}
         if fetch_data is None:
@@ -456,21 +457,24 @@ class Database:
         task_data["impetus"] = fetch_data[0]
         task_data["difficulty_score"] = fetch_data[1]
         goal_id = fetch_data[2]
-        
+
         # Get difficulty of the overarching goal for this task
-        goal_diff = self._run_param("SELECT difficulty FROM goals WHERE id = ?", (goal_id,)
+        goal_diff = self._run_param(
+            "SELECT difficulty FROM goals WHERE id = ?", (goal_id,)
         ).fetchone()
         if goal_diff:
             task_data["goal_difficulty"] = goal_diff[0]
         return task_data
-    
-    def update_user_glicko(self, user_id: int, rating: int, RD: float, volatility: float):
+
+    def update_user_glicko(
+        self, user_id: int, rating: int, RD: float, volatility: float
+    ):
         self._run_param(
             "UPDATE users SET rating = ?, deviation = ?, volatility = ? WHERE id = ?",
             (rating, RD, volatility, user_id),
         )
         self._commit()
-    
+
     def get_glicko_rating(self, user_id: str) -> int:
         fetch_data = self._run_param(
             "SELECT rating FROM users WHERE username = ?", (user_id,)

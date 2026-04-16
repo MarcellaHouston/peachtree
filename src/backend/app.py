@@ -99,6 +99,43 @@ def run_glicko():
         print(f"FAILURE: Daily Glicko Update at {start_time}\nREASON: {e}")
 
 
+@app.cli.command("assign-weekly-tasks")
+def assign_weekly_tasks():
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    this_sunday = db.this_sunday()
+    print(f"STARTING: Weekly Task Assignment at {start_time}\n")
+
+    users = db.select("users", "all")
+    failures = []
+    for user in users:
+        username = user[1]
+        try:
+            schedule = db.assign_weekly_tasks(username, this_sunday)
+            task_count = sum(
+                len(schedule.get(day, []))
+                for day in [
+                    "sunday",
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                ]
+            )
+            print(f"ASSIGNED: {username} ({task_count} tasks)")
+        except Exception as e:
+            failures.append((username, e))
+            print(f"FAILED: {username}\nREASON: {e}")
+
+    end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if failures:
+        print(f"FAILURE: Weekly Task Assignment at {end_time}")
+        print(f"FAILED USERS: {len(failures)} of {len(users)}")
+    else:
+        print(f"SUCCESS: Weekly Task Assignment at {end_time}")
+
+
 @app.route("/")
 def hello():
     return "Hello"
@@ -182,8 +219,8 @@ def signup():
                 1500,
                 350.0,
                 0.06,
-                "{}",
-                "{}",
+                {},
+                {},
             ],
         )
         # Get id from new user (it's auto-generated when user is created)
