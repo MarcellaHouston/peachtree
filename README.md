@@ -1,4 +1,4 @@
-# UM EECS 498-002 W25 Teamname
+# UM EECS 498-002 W25 Peachtree
 
 | Video  |  Wiki |  Agile |
 |:-----:|:-----:|:--------:|
@@ -9,6 +9,7 @@
 ![Team](/assets/team.png)
 
 [video]: https://youtu.be/sample
-[wiki]: https://github.com/member/team/wiki
-[agile]: https://trello.com/b/sample/general <!-- MUST be made public –>
+[wiki]: https://github.com/MarcellaHouston/peachtree/wiki
+[agile]: https://trello.com/b/esxvjvyg/peachtree 
+<!-- MUST be made public –>
 
