@@ -8,7 +8,7 @@
 ![Elevator Pitch](/src/img/pitch.png) <!-- MUST be placed in publicly accessible github -->
 ![Team](/src/img/members.png)
 
-[video]: https://youtu.be/sample
+[video]: https://youtu.be/r0Phk8E-tj8
 [wiki]: https://github.com/MarcellaHouston/peachtree/wiki
 [agile]: https://trello.com/b/esxvjvyg/peachtree 
 <!-- MUST be made public –>
