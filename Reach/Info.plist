@@ -7,5 +7,7 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allow microphone access to record your daily check-ins and turn your voice into actionable goals.</string>
 </dict>
 </plist>
